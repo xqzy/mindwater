@@ -1,0 +1,8 @@
+{
+  "track_id": "sqlite_db_20260307",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-03-07T14:00:00Z",
+  "updated_at": "2026-03-07T14:00:00Z",
+  "description": "Implement the SQLite database schema and core CRUD functions for Roles, Ambitions, and Tasks."
+}

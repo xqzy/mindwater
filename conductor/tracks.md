@@ -15,5 +15,5 @@
 
 ---
 
-- [ ] **Track: Implement the SQLite database schema and core CRUD functions for Roles, Ambitions, and Tasks.**
+- [x] **Track: Implement the SQLite database schema and core CRUD functions for Roles, Ambitions, and Tasks.**
 *Link: [./tracks/sqlite_db_20260307/](./tracks/sqlite_db_20260307/)*

@@ -1,0 +1,8 @@
+{
+  "track_id": "gtd_models_20260307",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-03-07T12:00:00Z",
+  "updated_at": "2026-03-07T12:00:00Z",
+  "description": "Design and implement the core GTD data models: Roles, Ambitions, and Tasks"
+}
