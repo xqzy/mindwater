@@ -7,6 +7,7 @@ class HorizonBase:
     name: str
     description: str = ""
     icon: str = ""
+    priority: int = 0
 
 @dataclass
 class Horizon5(HorizonBase):
@@ -34,6 +35,7 @@ class Horizon2(HorizonBase):
 class Ambition:
     outcome: str
     status: str = "active"
+    target_date: Optional[datetime] = None
     h2_id: Optional[str] = None
     h4_id: Optional[str] = None
     h5_id: Optional[str] = None
@@ -43,6 +45,8 @@ class Ambition:
 class Task:
     title: str
     status: str = "todo"
+    estimated_time: int = 0
+    due_date: Optional[datetime] = None
     context_tags: List[str] = field(default_factory=list)
     energy_level: str = "Medium"
     ambition_id: Optional[str] = None

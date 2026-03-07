@@ -7,9 +7,12 @@ class TestCaptureAPI(unittest.TestCase):
     def setUp(self):
         Base.metadata.create_all(bind=engine)
         self.client = TestClient(app)
+        self.db = SessionLocal()
 
     def tearDown(self):
+        self.db.close()
         Base.metadata.drop_all(bind=engine)
+        engine.dispose()
 
     def test_capture_endpoint(self):
         response = self.client.post("/capture", json={"text": "Buy groceries @store #errand"})

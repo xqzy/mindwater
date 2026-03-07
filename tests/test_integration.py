@@ -8,7 +8,7 @@ class TestGTDIntegration(unittest.TestCase):
         role = Role(name="Work", description="Work stuff", icon="💼", priority=1)
         
         # Create an Ambition linked to Role
-        ambition = Ambition(outcome="Ship Product", target_date=datetime(2026, 6, 1), status="active", role_id=1)
+        ambition = Ambition(outcome="Ship Product", target_date=datetime(2026, 6, 1), status="active", h2_id=1)
         role.ambitions.append(ambition)
         
         # Create a Task linked to Ambition

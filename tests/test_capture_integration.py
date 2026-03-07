@@ -13,6 +13,7 @@ class TestCaptureIntegration(unittest.TestCase):
     def tearDown(self):
         self.db.close()
         Base.metadata.drop_all(bind=engine)
+        engine.dispose()
 
     def test_end_to_end_api_capture(self):
         # 1. Post to API
