@@ -20,5 +20,5 @@
 
 ---
 
-- [ ] **Track: Create a 'Capture' service that parses natural language input into the Inbox table, including basic Email-to-Task processing.**
+- [x] **Track: Create a 'Capture' service that parses natural language input into the Inbox table, including basic Email-to-Task processing.**
 *Link: [./tracks/capture_service_20260307/](./tracks/capture_service_20260307/)*
