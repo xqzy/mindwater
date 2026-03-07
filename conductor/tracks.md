@@ -17,3 +17,8 @@
 
 - [x] **Track: Implement the SQLite database schema and core CRUD functions for Roles, Ambitions, and Tasks.**
 *Link: [./tracks/sqlite_db_20260307/](./tracks/sqlite_db_20260307/)*
+
+---
+
+- [ ] **Track: Create a 'Capture' service that parses natural language input into the Inbox table, including basic Email-to-Task processing.**
+*Link: [./tracks/capture_service_20260307/](./tracks/capture_service_20260307/)*
