@@ -1,13 +1,15 @@
 # Tech Stack
 
 ## Programming Languages
-- Python / TypeScript / etc.
+- Python 3.13
 
 ## Frameworks & Libraries
-- FastAPI / React / etc.
+- SQLAlchemy (ORM)
+- Alembic (Migrations)
+- Unittest
 
 ## Storage
-- PostgreSQL / Redis / etc.
+- SQLite (Local File)
 
 ## Infrastructure & Tools
-- Docker / GitHub Actions / etc.
+- Git
