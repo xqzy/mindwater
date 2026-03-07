@@ -5,5 +5,5 @@
 
 ---
 
-- [ ] **Track: Design and implement the core GTD data models: Roles, Ambitions, and Tasks**
+- [x] **Track: Design and implement the core GTD data models: Roles, Ambitions, and Tasks**
 *Link: [./tracks/gtd_models_20260307/](./tracks/gtd_models_20260307/)*
