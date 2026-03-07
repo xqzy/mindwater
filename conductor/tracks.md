@@ -10,5 +10,5 @@
 
 ---
 
-- [ ] **Track: Re-implement GTD core models: Roles, Ambitions, Tasks (v2)**
+- [x] **Track: Re-implement GTD core models: Roles, Ambitions, Tasks (v2)**
 *Link: [./tracks/gtd_models_v2_20260307/](./tracks/gtd_models_v2_20260307/)*
