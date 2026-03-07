@@ -12,3 +12,8 @@
 
 - [x] **Track: Re-implement GTD core models: Roles, Ambitions, Tasks (v2)**
 *Link: [./tracks/gtd_models_v2_20260307/](./tracks/gtd_models_v2_20260307/)*
+
+---
+
+- [ ] **Track: Implement the SQLite database schema and core CRUD functions for Roles, Ambitions, and Tasks.**
+*Link: [./tracks/sqlite_db_20260307/](./tracks/sqlite_db_20260307/)*
