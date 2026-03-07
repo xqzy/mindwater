@@ -1,7 +1,7 @@
 # Tracks Registry
 
 - [Track 1: Initialization](./tracks/track-1/index.md) (Completed)
-- [Track 2: Scaffold Project Structure & Main Component](./tracks/track-2/index.md) (In Progress)
+- [Track 2: Scaffold Project Structure & Main Component](./tracks/track-2/index.md) (Completed)
 
 ---
 
