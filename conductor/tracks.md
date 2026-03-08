@@ -22,3 +22,8 @@
 
 - [x] **Track: Create a 'Capture' service that parses natural language input into the Inbox table, including basic Email-to-Task processing.**
 *Link: [./tracks/capture_service_20260307/](./tracks/capture_service_20260307/)*
+
+---
+
+- [x] **Track: Create a TUI Capture interface that takes a string, parses it, and saves it to the Firebase 'Inbox' collection.**
+*Link: [./tracks/tui_capture_20260308/](./tracks/tui_capture_20260308/)*

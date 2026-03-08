@@ -1,0 +1,8 @@
+{
+  "track_id": "tui_capture_20260308",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-03-08T10:00:00Z",
+  "updated_at": "2026-03-08T10:00:00Z",
+  "description": "Create a TUI Capture interface using Textual that takes a string, parses it, and saves it to the Firebase 'Inbox' collection."
+}
