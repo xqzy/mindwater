@@ -54,10 +54,17 @@ class Task(Base):
     status = Column(String, default="todo")
     context_tags = Column(JSON)
     energy_level = Column(String, default="Medium")
+    planned_date = Column(DateTime)
+    estimated_time = Column(Integer, default=0) # in minutes
     ambition_id = Column(Integer, ForeignKey('ambition.id'))
     role_id = Column(Integer, ForeignKey('h2_role.id'))
     ambition = relationship("Ambition", back_populates="tasks")
     role = relationship("Horizon2", back_populates="tasks")
+
+class ReviewLog(Base):
+    __tablename__ = 'review_log'
+    id = Column(Integer, primary_key=True)
+    timestamp = Column(DateTime, default=lambda: datetime.now(UTC))
 
 class Inbox(Base):
     __tablename__ = 'inbox'

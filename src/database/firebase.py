@@ -49,3 +49,31 @@ def add_to_inbox(raw_text: str, parsed_data: dict):
         "timestamp": datetime.datetime.now(datetime.timezone.utc)
     })
     return doc_ref.id
+
+def get_inbox_items():
+    """
+    Retrieves all items from the 'inbox' collection, sorted by timestamp descending.
+    """
+    try:
+        db = get_db()
+    except RuntimeError as e:
+        raise e
+        
+    docs = db.collection("inbox").order_by("timestamp", direction=firestore.Query.DESCENDING).stream()
+    items = []
+    for doc in docs:
+        item_data = doc.to_dict()
+        item_data["id"] = doc.id
+        items.append(item_data)
+    return items
+
+def delete_inbox_item(doc_id: str):
+    """
+    Deletes an item from the 'inbox' collection by its document ID.
+    """
+    try:
+        db = get_db()
+        db.collection("inbox").document(doc_id).delete()
+    except Exception as e:
+        raise RuntimeError(f"Failed to delete inbox item {doc_id}: {e}")
+

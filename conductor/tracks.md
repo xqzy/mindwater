@@ -27,3 +27,48 @@
 
 - [x] **Track: Create a TUI Capture interface that takes a string, parses it, and saves it to the Firebase 'Inbox' collection.**
 *Link: [./tracks/tui_capture_20260308/](./tracks/tui_capture_20260308/)*
+
+---
+
+- [x] **Track: Create a TUI screen that fetches all tasks from the Firebase 'Inbox' collection and displays them in a scrollable list.**
+*Link: [./tracks/tui_inbox_list_20260308/](./tracks/tui_inbox_list_20260308/)*
+
+---
+
+- [x] **Track: Create a detailed view for a selected item from the Inbox list to define its next action and move it to the local SQLite database.**
+*Link: [./tracks/tui_inbox_view_20260308/](./tracks/tui_inbox_view_20260308/)*
+
+---
+
+- [x] **Track: Refactor the TUI to use a 'MainApp' class with a Sidebar or TabbedContent. Integrate the 'Capture' and 'List' screens for seamless switching.**
+*Link: [./tracks/tui_navigation_refactor_20260309/](./tracks/tui_navigation_refactor_20260309/)*
+
+---
+
+- [x] **Track: Implement a view for seeing and managing structured GTD tasks in the local SQLite database.**
+*Link: [./tracks/tui_tasks_view_20260309/](./tracks/tui_tasks_view_20260309/)*
+
+---
+
+- [x] **Track: Project Management: Roles & Ambitions**
+*Link: [./tracks/project_management_20260309/](./tracks/project_management_20260309/)*
+
+---
+
+- [x] **Track: Search & Filtering: Context, Energy, Role**
+*Link: [./tracks/search_filtering_20260309/](./tracks/search_filtering_20260309/)*
+
+---
+
+- [x] **Track: Weekly Review Module**
+*Link: [./tracks/weekly_review_20260309/](./tracks/weekly_review_20260309/)*
+
+---
+
+- [x] **Track: Weekly Review Polish & H2 Constraints**
+*Link: [./tracks/weekly_review_polish_20260309/](./tracks/weekly_review_polish_20260309/)*
+
+---
+
+- [x] **Track: Task Details Editing**
+*Link: [./tracks/task_editing_20260309/](./tracks/task_editing_20260309/)*

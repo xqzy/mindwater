@@ -47,6 +47,7 @@ class Task:
     status: str = "todo"
     estimated_time: int = 0
     due_date: Optional[datetime] = None
+    planned_date: Optional[datetime] = None
     context_tags: List[str] = field(default_factory=list)
     energy_level: str = "Medium"
     ambition_id: Optional[str] = None

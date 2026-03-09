@@ -1,4 +1,6 @@
+from datetime import datetime
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from . import models
 
 # Horizon 5 (Purpose)
@@ -28,6 +30,23 @@ def create_h2(db: Session, name: str, description: str = None, h4_id: int = None
     db.refresh(db_h2)
     return db_h2
 
+def get_all_roles(db: Session):
+    return db.query(models.Horizon2).all()
+
+def get_roles_with_ambition_counts(db: Session):
+    """
+    Returns a list of tuples: (Role object, active_ambition_count)
+    """
+    roles = db.query(models.Horizon2).all()
+    results = []
+    for role in roles:
+        active_count = db.query(models.Ambition).filter(
+            models.Ambition.h2_id == role.id,
+            models.Ambition.status == "active"
+        ).count()
+        results.append((role, active_count))
+    return results
+
 # Ambition (Horizon 1)
 def create_ambition(db: Session, outcome: str, h2_id: int = None, h4_id: int = None, h5_id: int = None):
     db_ambition = models.Ambition(outcome=outcome, h2_id=h2_id, h4_id=h4_id, h5_id=h5_id)
@@ -36,19 +55,71 @@ def create_ambition(db: Session, outcome: str, h2_id: int = None, h4_id: int = N
     db.refresh(db_ambition)
     return db_ambition
 
+def get_all_ambitions(db: Session):
+    return db.query(models.Ambition).all()
+
 def get_ambitions_by_role(db: Session, h2_id: int):
     return db.query(models.Ambition).filter(models.Ambition.h2_id == h2_id).all()
 
+def get_ambitions_with_task_counts(db: Session, status: str = "active"):
+    """
+    Returns a list of dicts with ambition data and its todo task count.
+    """
+    ambitions = db.query(models.Ambition).filter(models.Ambition.status == status).all()
+    results = []
+    for a in ambitions:
+        todo_count = db.query(models.Task).filter(
+            models.Task.ambition_id == a.id,
+            models.Task.status == "todo"
+        ).count()
+        results.append({
+            "id": a.id,
+            "outcome": a.outcome,
+            "role_name": a.role.name if a.role else "",
+            "status": a.status,
+            "todo_count": todo_count
+        })
+    return results
+
 # Task (Horizon 0)
-def create_task(db: Session, title: str, ambition_id: int = None, role_id: int = None, context_tags: list = None, energy_level: str = "Medium"):
-    db_task = models.Task(title=title, ambition_id=ambition_id, role_id=role_id, context_tags=context_tags, energy_level=energy_level)
+def create_task(db: Session, title: str, ambition_id: int = None, role_id: int = None, context_tags: list = None, energy_level: str = "Medium", planned_date: datetime = None, estimated_time: int = 0):
+    db_task = models.Task(
+        title=title, 
+        ambition_id=ambition_id, 
+        role_id=role_id, 
+        context_tags=context_tags, 
+        energy_level=energy_level,
+        planned_date=planned_date,
+        estimated_time=estimated_time
+    )
     db.add(db_task)
     db.commit()
     db.refresh(db_task)
     return db_task
 
+def get_all_tasks(db: Session):
+    return db.query(models.Task).all()
+
 def get_tasks_by_ambition(db: Session, ambition_id: int):
     return db.query(models.Task).filter(models.Task.ambition_id == ambition_id).all()
+
+def update_task_status(db: Session, task_id: int, status: str):
+    db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
+    if db_task:
+        db_task.status = status
+        db.commit()
+        db.refresh(db_task)
+    return db_task
+
+def update_task(db: Session, task_id: int, **kwargs):
+    db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
+    if db_task:
+        for key, value in kwargs.items():
+            if hasattr(db_task, key):
+                setattr(db_task, key, value)
+        db.commit()
+        db.refresh(db_task)
+    return db_task
 
 def filter_tasks(db: Session, context_tag: str = None, energy_level: str = None):
     query = db.query(models.Task)
@@ -58,6 +129,26 @@ def filter_tasks(db: Session, context_tag: str = None, energy_level: str = None)
         query = query.filter(models.Task.energy_level == energy_level)
     return query.all()
 
+def get_filtered_tasks(db: Session, role_id: int = None, context_tag: str = None, energy_level: str = None):
+    query = db.query(models.Task)
+    if role_id:
+        query = query.filter(models.Task.role_id == role_id)
+    if context_tag:
+        # Using a simple check for context tags in the JSON array
+        query = query.filter(models.Task.context_tags.contains([context_tag]))
+    if energy_level:
+        query = query.filter(models.Task.energy_level == energy_level)
+    return query.all()
+
+def get_unique_contexts(db: Session):
+    tasks = db.query(models.Task).all()
+    contexts = set()
+    for t in tasks:
+        if t.context_tags:
+            for c in t.context_tags:
+                contexts.add(c)
+    return sorted(list(contexts))
+
 # Inbox (Capture)
 def create_inbox_item(db: Session, raw_text: str, source_tag: str = "manual"):
     db_inbox = models.Inbox(raw_text=raw_text, source_tag=source_tag)
@@ -65,6 +156,31 @@ def create_inbox_item(db: Session, raw_text: str, source_tag: str = "manual"):
     db.commit()
     db.refresh(db_inbox)
     return db_inbox
+
+def delete_role(db: Session, role_id: int):
+    db_role = db.query(models.Horizon2).filter(models.Horizon2.id == role_id).first()
+    if db_role:
+        db.delete(db_role)
+        db.commit()
+    return db_role
+
+def delete_ambition(db: Session, ambition_id: int):
+    db_ambition = db.query(models.Ambition).filter(models.Ambition.id == ambition_id).first()
+    if db_ambition:
+        db.delete(db_ambition)
+        db.commit()
+    return db_ambition
+
+# Review
+def record_review(db: Session):
+    db_review = models.ReviewLog()
+    db.add(db_review)
+    db.commit()
+    db.refresh(db_review)
+    return db_review
+
+def get_last_review(db: Session):
+    return db.query(models.ReviewLog).order_by(models.ReviewLog.timestamp.desc()).first()
 
 # Empty Role Check
 def get_empty_roles(db: Session):
@@ -76,3 +192,5 @@ def get_empty_roles(db: Session):
         if not active_ambitions and not active_tasks:
             empty_roles.append(role)
     return empty_roles
+
+

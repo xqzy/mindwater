@@ -1,17 +1,20 @@
 import unittest
-from src.database.session import SessionLocal, init_db, engine
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 from src.database.models import Base
 from src.database import crud
 
 class TestDatabaseCRUD(unittest.TestCase):
     def setUp(self):
         # Create a clean in-memory database for testing
-        Base.metadata.create_all(bind=engine)
-        self.db = SessionLocal()
+        self.engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+        Base.metadata.create_all(bind=self.engine)
+        self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
+        self.db = self.SessionLocal()
 
     def tearDown(self):
         self.db.close()
-        Base.metadata.drop_all(bind=engine)
+        Base.metadata.drop_all(bind=self.engine)
 
     def test_create_h5_purpose(self):
         h5 = crud.create_h5(self.db, name="Life Mission", description="To help others", icon="🌟")
@@ -48,6 +51,22 @@ class TestDatabaseCRUD(unittest.TestCase):
         self.assertEqual(low_energy[0].title, "Low energy task")
         self.assertEqual(len(computer_tasks), 1)
         self.assertEqual(computer_tasks[0].title, "High energy task")
+
+    def test_update_task(self):
+        from datetime import datetime
+        task = crud.create_task(self.db, title="Original Title")
+        planned_date = datetime(2026, 3, 10)
+        
+        updated_task = crud.update_task(self.db, task.id, 
+                                       title="Updated Title", 
+                                       status="in_progress",
+                                       planned_date=planned_date,
+                                       estimated_time=45)
+        
+        self.assertEqual(updated_task.title, "Updated Title")
+        self.assertEqual(updated_task.status, "in_progress")
+        self.assertEqual(updated_task.planned_date, planned_date)
+        self.assertEqual(updated_task.estimated_time, 45)
 
     def test_empty_role_check(self):
         role_empty = crud.create_h2(self.db, name="Empty Role")
