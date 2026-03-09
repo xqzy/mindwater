@@ -11,7 +11,7 @@ from textual.screen import Screen
 from textual import work, on
 from src.services.parser import parse_capture_text
 from src.database.firebase import add_to_inbox, get_inbox_items, delete_inbox_item
-from src.database.session import SessionLocal, init_db
+from src.database.session import SessionLocal, init_db, APP_ENV
 from src.database.crud import (
     get_all_roles, get_all_ambitions, create_task, get_all_tasks, 
     update_task_status, create_h2, create_ambition, delete_role, delete_ambition,
@@ -51,6 +51,94 @@ class AddRoleScreen(Screen):
                 self.app.pop_screen()
                 self.app.call_after_refresh(self.app.action_refresh_active_view)
 
+class AddTaskScreen(Screen):
+    """Screen to add a new Task directly."""
+    CSS = """
+    AddTaskScreen { align: center middle; }
+    #dialog { width: 70%; height: auto; padding: 1 2; border: thick $primary; background: $surface; }
+    .field-label { margin-top: 1; color: $accent; }
+    #actions { margin-top: 1; align: right middle; }
+    Button { margin-left: 1; }
+    """
+    
+    def __init__(self, initial_role_id: str = None, initial_ambition_id: str = None, on_success: callable = None):
+        super().__init__()
+        self.initial_role_id = initial_role_id
+        self.initial_ambition_id = initial_ambition_id
+        self.on_success = on_success
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="dialog"):
+            yield Static("[bold]Add New Task[/bold]")
+            yield Static("Title:", classes="field-label")
+            yield Input(placeholder="What needs to be done?", id="task_title")
+            
+            yield Static("Role:", classes="field-label")
+            yield Select([], id="role_select", prompt="Select a Role")
+            
+            yield Static("Ambition (Optional):", classes="field-label")
+            yield Select([], id="ambition_select", prompt="Select an Ambition")
+            
+            yield Static("Energy Level:", classes="field-label")
+            yield Select([("Low", "Low"), ("Medium", "Medium"), ("High", "High")], value="Medium", id="energy_select")
+            
+            with Horizontal(id="actions"):
+                yield Button("Cancel", variant="error", id="cancel_btn")
+                yield Button("Add Task", variant="success", id="add_btn")
+
+    def on_mount(self) -> None:
+        self.load_options()
+
+    @work(thread=True)
+    def load_options(self) -> None:
+        db = SessionLocal()
+        try:
+            roles = get_all_roles(db)
+            ambitions = get_all_ambitions(db)
+            role_options = [(r.name, str(r.id)) for r in roles]
+            ambition_options = [(a.outcome, str(a.id)) for a in ambitions]
+            self.app.call_from_thread(self._update_selects, role_options, ambition_options)
+        finally:
+            db.close()
+
+    def _update_selects(self, role_options, ambition_options) -> None:
+        rs = self.query_one("#role_select", Select)
+        rs.set_options(role_options)
+        if self.initial_role_id:
+            rs.value = self.initial_role_id
+            
+        as_ = self.query_one("#ambition_select", Select)
+        as_.set_options(ambition_options)
+        if self.initial_ambition_id:
+            as_.value = self.initial_ambition_id
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "cancel_btn":
+            self.app.pop_screen()
+        elif event.button.id == "add_btn":
+            self.save_task()
+
+    @work(thread=True)
+    def save_task(self) -> None:
+        title = self.query_one("#task_title", Input).value
+        role_id = self.query_one("#role_select", Select).value
+        ambition_id = self.query_one("#ambition_select", Select).value
+        energy = self.query_one("#energy_select", Select).value
+        
+        r_id = int(role_id) if isinstance(role_id, str) else None
+        a_id = int(ambition_id) if isinstance(ambition_id, str) else None
+        
+        if title:
+            db = SessionLocal()
+            try:
+                create_task(db, title=title, role_id=r_id, ambition_id=a_id, energy_level=energy)
+                if self.on_success:
+                    self.on_success()
+                self.app.call_from_thread(self.app.pop_screen)
+                self.app.call_after_refresh(self.app.action_refresh_active_view)
+            finally:
+                db.close()
+
 class AddAmbitionScreen(Screen):
     """Screen to add a new Ambition (Project)."""
     CSS = """
@@ -60,6 +148,12 @@ class AddAmbitionScreen(Screen):
     #actions { margin-top: 1; align: right middle; }
     Button { margin-left: 1; }
     """
+
+    def __init__(self, initial_role_id: str = None, on_success: callable = None):
+        super().__init__()
+        self.initial_role_id = initial_role_id
+        self.on_success = on_success
+
     def compose(self) -> ComposeResult:
         with Vertical(id="dialog"):
             yield Static("[bold]Add New Ambition (Project)[/bold]")
@@ -76,7 +170,10 @@ class AddAmbitionScreen(Screen):
         roles = get_all_roles(db)
         db.close()
         role_options = [(r.name, str(r.id)) for r in roles]
-        self.query_one("#role_select", Select).set_options(role_options)
+        rs = self.query_one("#role_select", Select)
+        rs.set_options(role_options)
+        if self.initial_role_id:
+            rs.value = self.initial_role_id
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "cancel_btn":
@@ -87,10 +184,14 @@ class AddAmbitionScreen(Screen):
             if outcome:
                 r_id = int(role_id) if isinstance(role_id, str) else None
                 db = SessionLocal()
-                create_ambition(db, outcome=outcome, h2_id=r_id)
-                db.close()
-                self.app.pop_screen()
-                self.app.call_after_refresh(self.app.action_refresh_active_view)
+                try:
+                    create_ambition(db, outcome=outcome, h2_id=r_id)
+                    if self.on_success:
+                        self.on_success()
+                    self.app.pop_screen()
+                    self.app.call_after_refresh(self.app.action_refresh_active_view)
+                finally:
+                    db.close()
 
 class InboxClarifyScreen(Screen):
     """A screen for clarifying an inbox item."""
@@ -252,6 +353,7 @@ class InboxListView(Static):
         table.add_columns("Timestamp", "Task", "Tags", "Contexts")
         table.cursor_type = "row"
         table.zebra_stripes = True
+        self.action_refresh_data()
 
     @work(exclusive=True, thread=True)
     def action_refresh_data(self) -> None:
@@ -479,6 +581,9 @@ class TaskEditScreen(Screen):
         if hasattr(self.app, 'action_refresh_active_view'):
             self.app.action_refresh_active_view()
 
+from dotenv import load_dotenv
+load_dotenv()
+
 class TasksView(Static):
     """A view to display and manage structured GTD tasks."""
     BINDINGS = [("e", "edit_task", "Edit Task")]
@@ -514,6 +619,7 @@ class TasksView(Static):
 
         yield Static("Loading tasks from local database...", id="loading_tasks", classes="status-msg")
         yield Static("No tasks found matching filters.", id="empty_tasks", classes="status-msg")
+        yield Static("Error loading tasks.", id="error_tasks", classes="status-msg")
         
         table = DataTable(id="tasks_table")
         table.display = False
@@ -535,8 +641,8 @@ class TasksView(Static):
             role_options = [(r.name, str(r.id)) for r in roles]
             context_options = [(c, c) for c in contexts]
             self.app.call_from_thread(self._update_filter_widgets, role_options, context_options)
-        except Exception:
-            pass
+        except Exception as e:
+            self.app.notify(f"Error loading filters: {e}", severity="error")
         finally:
             db.close()
 
@@ -549,15 +655,19 @@ class TasksView(Static):
         """Fetch tasks from SQLite with current filters."""
         self.app.call_from_thread(self._set_status, "loading")
         
-        # Capture current filter values
         try:
-            role_val = self.query_one("#filter_role", Select).value
-            context_val = self.query_one("#filter_context", Select).value
-            energy_val = self.query_one("#filter_energy", Select).value
-            
-            r_id = int(role_val) if isinstance(role_val, str) else None
-            c_tag = context_val if isinstance(context_val, str) else None
-            e_lvl = energy_val if isinstance(energy_val, str) else None
+            # Capture current filter values from UI thread if possible, or handle missing widgets
+            try:
+                role_val = self.query_one("#filter_role", Select).value
+                context_val = self.query_one("#filter_context", Select).value
+                energy_val = self.query_one("#filter_energy", Select).value
+                
+                r_id = int(role_val) if isinstance(role_val, str) else None
+                c_tag = context_val if isinstance(context_val, str) else None
+                e_lvl = energy_val if isinstance(energy_val, str) else None
+            except Exception as e:
+                # If widgets aren't ready yet, use default values
+                r_id = c_tag = e_lvl = None
 
             db = SessionLocal()
             try:
@@ -578,21 +688,27 @@ class TasksView(Static):
                         "estimated_time": t.estimated_time
                     })
                 self.app.call_from_thread(self._populate_table, task_list)
-            except Exception:
-                pass
+            except Exception as e:
+                self.app.call_from_thread(self._set_status, "error", str(e))
             finally:
                 db.close()
-        except Exception:
-            pass
+        except Exception as e:
+            self.app.call_from_thread(self._set_status, "error", str(e))
 
-    def _set_status(self, status: str) -> None:
+    def _set_status(self, status: str, error_msg: str = "") -> None:
         loading = self.query_one("#loading_tasks")
         empty = self.query_one("#empty_tasks")
+        error = self.query_one("#error_tasks")
         table = self.query_one(DataTable)
 
         loading.display = (status == "loading")
         empty.display = (status == "empty")
+        error.display = (status == "error")
         table.display = (status == "success")
+        
+        if status == "error" and error_msg:
+            error.update(f"Error loading tasks: {error_msg}")
+
 
     def _populate_table(self, tasks: list) -> None:
         table = self.query_one(DataTable)
@@ -667,17 +783,22 @@ class TasksView(Static):
 
 class HorizonsView(Static):
     """A view to manage Roles and Ambitions."""
+    BINDINGS = [
+        ("d", "delete_selected", "Delete Selected"),
+    ]
     CSS = """
     HorizonsView { layout: vertical; }
     .section-header { background: $primary; color: $text; padding: 0 1; margin-top: 1; }
     DataTable { height: 1fr; margin: 0 1; }
-    #horizons_actions { padding: 1; align: right middle; }
+    #horizons_actions { padding: 1; align: right middle; height: auto; }
     """
     def compose(self) -> ComposeResult:
         yield Static("Roles (Areas of Focus)", classes="section-header")
         yield DataTable(id="roles_table")
         yield Static("Ambitions (Projects)", classes="section-header")
         yield DataTable(id="ambitions_table")
+        yield Static("Tasks for Selected Project", classes="section-header")
+        yield DataTable(id="ambition_tasks_table")
         with Horizontal(id="horizons_actions"):
             yield Button("Add Role", variant="primary", id="add_role_btn")
             yield Button("Add Ambition", variant="primary", id="add_ambition_btn")
@@ -690,6 +811,10 @@ class HorizonsView(Static):
         at = self.query_one("#ambitions_table", DataTable)
         at.add_columns("ID", "Outcome", "Role", "Status")
         at.zebra_stripes = True
+
+        tt = self.query_one("#ambition_tasks_table", DataTable)
+        tt.add_columns("Status", "Title", "Energy")
+        tt.zebra_stripes = True
         
         self.action_refresh_data()
 
@@ -719,6 +844,69 @@ class HorizonsView(Static):
             self.app.push_screen(AddRoleScreen())
         elif event.button.id == "add_ambition_btn":
             self.app.push_screen(AddAmbitionScreen())
+
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        if event.data_table.id == "ambitions_table":
+            a_id = int(event.row_key.value)
+            self.load_ambition_tasks(a_id)
+
+    @work(thread=True)
+    def load_ambition_tasks(self, ambition_id: int) -> None:
+        db = SessionLocal()
+        try:
+            from src.database.crud import get_tasks_by_ambition
+            tasks = get_tasks_by_ambition(db, ambition_id)
+            task_list = [{"status": t.status, "title": t.title, "energy": t.energy_level} for t in tasks]
+            self.app.call_from_thread(self._populate_tasks_table, task_list)
+        finally:
+            db.close()
+
+    def _populate_tasks_table(self, tasks: list) -> None:
+        tt = self.query_one("#ambition_tasks_table", DataTable)
+        tt.clear()
+        for t in tasks:
+            status_icon = "✅" if t['status'] == "done" else "⭕"
+            tt.add_row(status_icon, t['title'], t['energy'])
+
+    def action_delete_selected(self) -> None:
+        """Delete the selected Role or Ambition."""
+        if self.query_one("#roles_table").has_focus:
+            table = self.query_one("#roles_table")
+            if table.cursor_row is not None:
+                try:
+                    row_key = table.coordinate_to_cell_key(table.cursor_coordinate).row_key
+                    self.delete_entity("role", row_key)
+                except Exception:
+                    pass
+        elif self.query_one("#ambitions_table").has_focus:
+            table = self.query_one("#ambitions_table")
+            if table.cursor_row is not None:
+                try:
+                    row_key = table.coordinate_to_cell_key(table.cursor_coordinate).row_key
+                    self.delete_entity("ambition", row_key)
+                except Exception:
+                    pass
+
+    @work(thread=True)
+    def delete_entity(self, entity_type: str, row_key) -> None:
+        db = SessionLocal()
+        try:
+            entity_id = int(row_key.value)
+            if entity_type == "role":
+                delete_role(db, entity_id)
+            else:
+                delete_ambition(db, entity_id)
+            self.app.call_from_thread(self._remove_ui_row, entity_type, row_key)
+        except Exception as e:
+            self.app.notify(f"Delete failed: {e}", severity="error")
+        finally:
+            db.close()
+
+    def _remove_ui_row(self, entity_type: str, row_key) -> None:
+        table_id = "#roles_table" if entity_type == "role" else "#ambitions_table"
+        self.query_one(table_id, DataTable).remove_row(row_key)
+        if entity_type == "ambition":
+            self.query_one("#ambition_tasks_table", DataTable).clear()
 
 class ReviewView(VerticalScroll):
     """A guided Weekly Review wizard."""
@@ -780,7 +968,7 @@ class ReviewView(VerticalScroll):
             yield Button("Next", variant="primary", id="btn_next")
 
     def on_mount(self) -> None:
-        self.review_stats = {"captured": 0, "projects_reviewed": 0}
+        self.review_stats = {"captured": 0, "new_tasks": 0, "new_ambitions": 0}
         try:
             db = SessionLocal()
             last = get_last_review(db)
@@ -828,6 +1016,12 @@ class ReviewView(VerticalScroll):
             status = "[green]Healthy[/green]" if count > 0 else "[red]STAGNANT[/red]"
             rt.add_row(r.name, str(count), status, key=str(r.id))
 
+    def increment_new_tasks(self) -> None:
+        self.review_stats["new_tasks"] += 1
+
+    def increment_new_ambitions(self) -> None:
+        self.review_stats["new_ambitions"] += 1
+
     @on(Button.Pressed)
     def handle_nav(self, event: Button.Pressed) -> None:
         switcher = self.query_one(ContentSwitcher)
@@ -857,13 +1051,38 @@ class ReviewView(VerticalScroll):
         elif event.button.id == "btn_complete_review":
             self.complete_review()
         elif event.button.id == "btn_review_add_task":
-            # Just focus the relevant view for now, or push a simplified screen
-            self.app.notify("Clarify captured items to add tasks.")
+            # Identify which project is selected if any
+            table = self.query_one("#review_ambitions_table", DataTable)
+            a_id = None
+            if table.cursor_row is not None:
+                try:
+                    row_key = table.coordinate_to_cell_key(table.cursor_coordinate).row_key
+                    if row_key:
+                        a_id = str(row_key.value)
+                except Exception:
+                    pass
+            self.app.push_screen(AddTaskScreen(initial_ambition_id=a_id, on_success=self.increment_new_tasks))
         elif event.button.id == "btn_review_add_ambition":
-            self.app.push_screen(AddAmbitionScreen())
+            # Identify which role is selected if any
+            table = self.query_one("#review_roles_table", DataTable)
+            r_id = None
+            if table.cursor_row is not None:
+                try:
+                    row_key = table.coordinate_to_cell_key(table.cursor_coordinate).row_key
+                    if row_key:
+                        r_id = str(row_key.value)
+                except Exception:
+                    pass
+            self.app.push_screen(AddAmbitionScreen(initial_role_id=r_id, on_success=self.increment_new_ambitions))
+
     def update_summary(self) -> None:
-        summary = f"Items Captured: {self.review_stats['captured']}\n"
+        summary = (
+            f"Items Captured: {self.review_stats['captured']}\n"
+            f"New Next Actions: {self.review_stats.get('new_tasks', 0)}\n"
+            f"New Projects: {self.review_stats.get('new_ambitions', 0)}"
+        )
         self.query_one("#review_summary", Static).update(summary)
+
 
     @on(Input.Submitted, "#review_mind_dump")
     async def handle_dump(self, message: Input.Submitted) -> None:
@@ -892,6 +1111,7 @@ class MindWaterApp(App):
     """The main GTD application."""
     
     TITLE = "MindWater GTD"
+    SUB_TITLE = f"DB: {APP_ENV.capitalize()}"
     
     CSS = """
     #capture_container {

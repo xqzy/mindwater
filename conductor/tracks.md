@@ -68,6 +68,9 @@
 - [x] **Track: Weekly Review Polish & H2 Constraints**
 *Link: [./tracks/weekly_review_polish_20260309/](./tracks/weekly_review_polish_20260309/)*
 
+- [x] **Track: Environment Separation & Migration Mechanism**
+*Link: [./tracks/env_separation_20260309/](./tracks/env_separation_20260309/)*
+
 ---
 
 - [x] **Track: Task Details Editing**
