@@ -73,5 +73,10 @@
 
 ---
 
+- [x] **Track: Todoist Task Push**
+*Link: [./tracks/todoist_push_20260309/](./tracks/todoist_push_20260309/)*
+
+---
+
 - [x] **Track: Task Details Editing**
 *Link: [./tracks/task_editing_20260309/](./tracks/task_editing_20260309/)*

@@ -11,6 +11,7 @@ from textual.screen import Screen
 from textual import work, on
 from src.services.parser import parse_capture_text
 from src.database.firebase import add_to_inbox, get_inbox_items, delete_inbox_item
+from src.services.todoist import push_task_to_todoist
 from src.database.session import SessionLocal, init_db, APP_ENV
 from src.database.crud import (
     get_all_roles, get_all_ambitions, create_task, get_all_tasks, 
@@ -586,7 +587,10 @@ load_dotenv()
 
 class TasksView(Static):
     """A view to display and manage structured GTD tasks."""
-    BINDINGS = [("e", "edit_task", "Edit Task")]
+    BINDINGS = [
+        ("e", "edit_task", "Edit Task"),
+        ("p", "push_to_todoist", "Push to Todoist")
+    ]
     
     CSS = """
     #filter_bar {
@@ -767,6 +771,29 @@ class TasksView(Static):
             task_data = self.task_map.get(row_key)
             if task_data:
                 self.app.push_screen(TaskEditScreen(task_data))
+
+    def action_push_to_todoist(self) -> None:
+        """Push the selected task to Todoist."""
+        table = self.query_one(DataTable)
+        if table.cursor_row is not None:
+            try:
+                row_key = table.coordinate_to_cell_key(table.cursor_coordinate).row_key.value
+                task_data = self.task_map.get(row_key)
+                if task_data:
+                    self.push_to_todoist_task(task_data)
+            except Exception:
+                pass
+
+    @work(thread=True)
+    def push_to_todoist_task(self, task_data: dict) -> None:
+        try:
+            task_id = push_task_to_todoist(
+                title=task_data['title'],
+                due_date=task_data.get('planned_date')
+            )
+            self.app.call_from_thread(self.app.notify, f"Pushed to Todoist! ID: {task_id}")
+        except Exception as e:
+            self.app.call_from_thread(self.app.notify, f"Todoist push failed: {e}", severity="error")
 
     @work(thread=True)
     def toggle_task(self, task_id: int) -> None:
