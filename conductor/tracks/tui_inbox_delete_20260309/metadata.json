@@ -1,0 +1,8 @@
+{
+  "track_id": "tui_inbox_delete_20260309",
+  "type": "feature",
+  "status": "completed",
+  "created_at": "2026-03-09T10:00:00Z",
+  "updated_at": "2026-03-09T10:00:00Z",
+  "description": "Add functionality to the Inbox screen to delete the selected item by pressing the 'd' key."
+}

@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 
 from textual.app import App, ComposeResult
 from textual.widgets import Header, Footer, DataTable, Static
-from src.database.firebase import get_inbox_items
+from src.database.firebase import get_inbox_items, delete_inbox_item
 
 class TUIInboxApp(App):
     """A Textual App to view GTD Inbox."""
@@ -40,6 +40,7 @@ class TUIInboxApp(App):
         ("escape", "app.quit", "Quit"),
         ("q", "app.quit", "Quit"),
         ("r", "refresh_data", "Refresh"),
+        ("d", "delete_selected", "Delete Item"),
     ]
 
     def compose(self) -> ComposeResult:
@@ -99,7 +100,8 @@ class TUIInboxApp(App):
                     tags = ", ".join(item.get("tags", []))
                     contexts = ", ".join(item.get("contexts", []))
                     
-                    table.add_row(ts_str, clean_text, tags, contexts)
+                    # Use the document ID as the row key for easy deletion
+                    table.add_row(ts_str, clean_text, tags, contexts, key=item.get("id"))
                 
                 loading.display = False
                 table.display = True
@@ -109,6 +111,37 @@ class TUIInboxApp(App):
             loading.display = False
             error.update(f"Error loading data: {e}")
             error.display = True
+
+    async def action_delete_selected(self) -> None:
+        """Delete the currently selected inbox item."""
+        table = self.query_one(DataTable)
+        
+        # Get the row index under the cursor
+        row_index = table.cursor_row
+        if row_index is None or row_index < 0:
+            return
+
+        # Get the row key (which is our Firebase document ID)
+        try:
+            row_key = table.get_row_key_at(row_index)
+            doc_id = row_key.value
+            
+            # Delete from Firebase
+            # Again, synchronous call in TUI thread for simplicity in this project
+            delete_inbox_item(doc_id)
+            
+            # Remove from UI
+            table.remove_row(row_key)
+            
+            # If table is now empty, show empty message
+            if table.row_count == 0:
+                table.display = False
+                self.query_one("#empty").display = True
+                
+        except Exception as e:
+            # We could show a notification or update the error message
+            # For now, let's update the header or just log it
+            self.notify(f"Failed to delete: {e}", severity="error")
 
 
 if __name__ == "__main__":

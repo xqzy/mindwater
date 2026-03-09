@@ -1,1 +1,7 @@
 mindwater-6a0bd-firebase-adminsdk-fbsvc-8efa8e5a49.json
+*.db
+.venv/
+__pycache__/
+.pytest_cache/
+.vscode/
+.idea/

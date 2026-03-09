@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 
 from textual.app import App, ComposeResult
 from textual.widgets import Header, Footer, Static, Input, DataTable, TabbedContent, TabPane, Select, Button, ContentSwitcher, Label
-from textual.containers import Vertical, Center, Horizontal
+from textual.containers import Vertical, Center, Horizontal, VerticalScroll
 from textual.screen import Screen
 from textual import work, on
 from src.services.parser import parse_capture_text
@@ -236,6 +236,7 @@ class CaptureView(Static):
 
 class InboxListView(Static):
     """A view to display GTD Inbox items."""
+    BINDINGS = [("d", "delete_selected", "Delete Item")]
 
     def compose(self) -> ComposeResult:
         yield Static("Loading data from Firebase...", id="loading", classes="status-msg")
@@ -304,15 +305,46 @@ class InboxListView(Static):
         if item_data:
             self.app.push_screen(InboxClarifyScreen(item_data))
 
+    def action_delete_selected(self) -> None:
+        """Delete the currently selected inbox item."""
+        table = self.query_one(DataTable)
+        if table.cursor_row is not None:
+            # coordinate_to_cell_key gives us the row key for the cursor row
+            try:
+                row_key = table.coordinate_to_cell_key(table.cursor_coordinate).row_key
+                item_id = row_key.value
+                
+                # Delete from Firebase
+                self.delete_item_task(item_id, row_key)
+            except Exception:
+                pass
+
+    @work(thread=True)
+    def delete_item_task(self, item_id: str, row_key) -> None:
+        try:
+            delete_inbox_item(item_id)
+            self.app.call_from_thread(self._remove_row_ui, row_key)
+        except Exception as e:
+            self.app.notify(f"Failed to delete: {e}", severity="error")
+
+    def _remove_row_ui(self, row_key) -> None:
+        table = self.query_one(DataTable)
+        table.remove_row(row_key)
+        if table.row_count == 0:
+            self._set_status("empty")
+
 class TaskEditScreen(Screen):
     """Screen to edit task details."""
     CSS = """
     TaskEditScreen { align: center middle; }
-    #dialog { width: 80%; height: auto; padding: 1 2; border: thick $primary; background: $surface; }
+    #dialog { width: 80%; max-height: 90%; border: thick $primary; background: $surface; padding: 0; }
+    #form_container { padding: 1 2; height: 1fr; }
     .field-label { margin-top: 1; color: $accent; }
-    #actions { margin-top: 1; align: right middle; }
+    #actions { padding: 1 2; background: $boost; border-top: solid $primary; align: right middle; height: auto; }
     Button { margin-left: 1; }
     .row { height: auto; }
+    .row Vertical { width: 1fr; }
+    #edit_header { background: $primary; color: $text; padding: 0 1; }
     """
 
     def __init__(self, task_data: dict):
@@ -322,39 +354,42 @@ class TaskEditScreen(Screen):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="dialog"):
-            yield Static(f"[bold]Edit Task (ID: {self.task_id})[/bold]")
+            yield Static(f" [bold]Edit Task (ID: {self.task_id})[/bold]", id="edit_header")
             
-            yield Static("Title:", classes="field-label")
-            yield Input(value=self.initial_data.get('title', ''), id="task_title")
-            
-            with Horizontal(classes="row"):
-                with Vertical():
-                    yield Static("Status:", classes="field-label")
-                    yield Select([("Todo", "todo"), ("In Progress", "in_progress"), ("Done", "done")], 
-                               value=self.initial_data.get('status', 'todo'), id="status_select")
-                with Vertical():
-                    yield Static("Energy Level:", classes="field-label")
-                    yield Select([("Low", "Low"), ("Medium", "Medium"), ("High", "High")], 
-                               value=self.initial_data.get('energy', 'Medium'), id="energy_select")
+            with VerticalScroll(id="form_container"):
+                yield Static("Title:", classes="field-label")
+                yield Input(value=self.initial_data.get('title', ''), id="task_title")
+                
+                with Horizontal(classes="row"):
+                    with Vertical():
+                        yield Static("Status:", classes="field-label")
+                        yield Select([("Todo", "todo"), ("In Progress", "in_progress"), ("Done", "done")], 
+                                   value=self.initial_data.get('status', 'todo'), id="status_select")
+                    with Vertical():
+                        yield Static("Energy Level:", classes="field-label")
+                        yield Select([("Low", "Low"), ("Medium", "Medium"), ("High", "High")], 
+                                   value=self.initial_data.get('energy', 'Medium'), id="energy_select")
 
-            yield Static("Role:", classes="field-label")
-            yield Select([], id="role_select", prompt="Select a Role")
-            
-            yield Static("Ambition (Optional):", classes="field-label")
-            yield Select([], id="ambition_select", prompt="Select an Ambition")
+                with Horizontal(classes="row"):
+                    with Vertical():
+                        yield Static("Role:", classes="field-label")
+                        yield Select([], id="role_select", prompt="Select a Role")
+                    with Vertical():
+                        yield Static("Ambition (Optional):", classes="field-label")
+                        yield Select([], id="ambition_select", prompt="Select an Ambition")
 
-            yield Static("Context Tags (comma separated):", classes="field-label")
-            yield Input(value=self.initial_data.get('context', ''), id="context_input")
+                yield Static("Context Tags (comma separated):", classes="field-label")
+                yield Input(value=self.initial_data.get('context', ''), id="context_input")
 
-            with Horizontal(classes="row"):
-                with Vertical():
-                    yield Static("Planned Date (YYYY-MM-DD):", classes="field-label")
-                    pd = self.initial_data.get('planned_date')
-                    pd_str = pd.strftime('%Y-%m-%d') if pd and hasattr(pd, 'strftime') else (pd if isinstance(pd, str) else "")
-                    yield Input(value=pd_str, placeholder="YYYY-MM-DD", id="planned_date_input")
-                with Vertical():
-                    yield Static("Estimated Time (minutes):", classes="field-label")
-                    yield Input(value=str(self.initial_data.get('estimated_time', 0)), placeholder="e.g. 30", id="est_time_input")
+                with Horizontal(classes="row"):
+                    with Vertical():
+                        yield Static("Planned Date (YYYY-MM-DD):", classes="field-label")
+                        pd = self.initial_data.get('planned_date')
+                        pd_str = pd.strftime('%Y-%m-%d') if pd and hasattr(pd, 'strftime') else (pd if isinstance(pd, str) else "")
+                        yield Input(value=pd_str, placeholder="YYYY-MM-DD", id="planned_date_input")
+                    with Vertical():
+                        yield Static("Estimated Time (minutes):", classes="field-label")
+                        yield Input(value=str(self.initial_data.get('estimated_time', 0)), placeholder="e.g. 30", id="est_time_input")
             
             with Horizontal(id="actions"):
                 yield Button("Cancel", variant="error", id="cancel_btn")
@@ -462,6 +497,12 @@ class TasksView(Static):
     #filter_bar Button {
         margin-left: 1;
     }
+    #tasks_table {
+        margin-top: 0;
+    }
+    .status-msg {
+        display: none;
+    }
     """
 
     def compose(self) -> ComposeResult:
@@ -480,7 +521,7 @@ class TasksView(Static):
 
     def on_mount(self) -> None:
         table = self.query_one(DataTable)
-        table.add_columns("Status", "Title", "Role", "Ambition", "Context", "Energy")
+        table.add_columns("Status", "Title", "Due", "Role", "Ambition", "Context", "Energy", "Est")
         table.cursor_type = "row"
         table.zebra_stripes = True
         self.load_filter_options()
@@ -563,13 +604,24 @@ class TasksView(Static):
             self.task_map = {str(t['id']): t for t in tasks}
             for t in tasks:
                 status_icon = "✅" if t['status'] == "done" else "⭕"
+                
+                # Format due date
+                pd = t.get('planned_date')
+                pd_str = pd.strftime('%m-%d') if pd and hasattr(pd, 'strftime') else (pd if isinstance(pd, str) else "")
+                
+                # Truncate role and ambition
+                role_short = (t['role'][:8] + "..") if len(t['role']) > 8 else t['role']
+                ambition_short = (t['ambition'][:8] + "..") if len(t['ambition']) > 8 else t['ambition']
+                
                 table.add_row(
                     status_icon,
                     t['title'],
-                    t['role'],
-                    t['ambition'],
+                    pd_str,
+                    role_short,
+                    ambition_short,
                     t['context'],
                     t['energy'],
+                    str(t.get('estimated_time', '')),
                     key=str(t['id'])
                 )
             self._set_status("success")
@@ -617,7 +669,7 @@ class HorizonsView(Static):
     """A view to manage Roles and Ambitions."""
     CSS = """
     HorizonsView { layout: vertical; }
-    .section-header { background: $primary; color: $on-primary; padding: 0 1; margin-top: 1; }
+    .section-header { background: $primary; color: $text; padding: 0 1; margin-top: 1; }
     DataTable { height: 1fr; margin: 0 1; }
     #horizons_actions { padding: 1; align: right middle; }
     """
@@ -668,20 +720,21 @@ class HorizonsView(Static):
         elif event.button.id == "add_ambition_btn":
             self.app.push_screen(AddAmbitionScreen())
 
-class ReviewView(Vertical):
+class ReviewView(VerticalScroll):
     """A guided Weekly Review wizard."""
     CSS = """
-    ReviewView { align: center top; padding: 1 2; height: 1fr; }
-    ContentSwitcher { height: 1fr; }
-    .step-container { border: double $primary; padding: 1 2; margin-top: 1; height: 1fr; }
+    ReviewView { padding: 1 2; }
+    ContentSwitcher { height: auto; margin-bottom: 1; }
+    .step-container { border: double $primary; padding: 1 2; margin-top: 1; height: auto; min-height: 12; }
     .step-title { color: $accent; text-align: center; margin-bottom: 1; }
     .step-subtitle { margin-top: 1; text-align: center; color: $secondary; }
-    .nav-buttons { height: 3; margin-top: 1; align: center middle; background: $surface; border-top: solid $primary; }
+    .nav-buttons { height: auto; min-height: 3; margin-top: 1; align: center middle; background: $surface; border-top: solid $primary; padding: 1 0; }
     .jump-buttons { margin-top: 1; align: center middle; }
     .jump-buttons Button { margin: 0 1; width: 24; }
     Button { margin: 0 1; }
     .warning { color: red; font-weight: bold; }
     .stat-row { margin-top: 1; }
+    #review_ambitions_table, #review_roles_table { height: 10; margin: 1 0; }
     """
 
     def compose(self) -> ComposeResult:
@@ -722,6 +775,7 @@ class ReviewView(Vertical):
                 yield Button("Finish Review", variant="success", id="btn_complete_review")
 
         with Horizontal(classes="nav-buttons"):
+            yield Button("Menu", id="btn_menu")
             yield Button("Back", id="btn_back")
             yield Button("Next", variant="primary", id="btn_next")
 
@@ -790,6 +844,8 @@ class ReviewView(Vertical):
         elif event.button.id == "btn_back":
             if current_idx > 0:
                 switcher.current = steps[current_idx - 1]
+        elif event.button.id == "btn_menu":
+            switcher.current = "step_start"
         elif event.button.id == "goto_dump":
             switcher.current = "step_dump"
         elif event.button.id == "goto_projects":
@@ -861,7 +917,7 @@ class MindWaterApp(App):
     
     DataTable {
         height: 1fr;
-        margin: 1 2;
+        margin: 0 2;
     }
     """
     
