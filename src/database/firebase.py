@@ -19,6 +19,16 @@ def get_db():
     # It will automatically pick up GOOGLE_APPLICATION_CREDENTIALS if set,
     # or you can explicitly provide a path via FIREBASE_CREDENTIALS
     cred_path = os.environ.get("FIREBASE_CREDENTIALS")
+    
+    # If not in env, search for mindwater-*.json in root
+    if not cred_path:
+        import glob
+        matches = glob.glob("mindwater-*.json")
+        if matches:
+            # Sort to be deterministic if multiple files exist
+            matches.sort()
+            cred_path = matches[0]
+
     try:
         if not firebase_admin._apps:
             if cred_path and os.path.exists(cred_path):
@@ -30,7 +40,7 @@ def get_db():
         _db = firestore.client()
         return _db
     except Exception as e:
-        raise RuntimeError(f"Failed to initialize Firebase: {e}")
+        raise RuntimeError(f"Failed to initialize Firebase with {cred_path if cred_path else 'default credentials'}: {e}")
 
 def add_to_inbox(raw_text: str, parsed_data: dict):
     """

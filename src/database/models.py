@@ -56,6 +56,8 @@ class Task(Base):
     energy_level = Column(String, default="Medium")
     planned_date = Column(DateTime)
     estimated_time = Column(Integer, default=0) # in minutes
+    actual_time = Column(Integer, default=0)    # in minutes
+    completed_at = Column(DateTime)
     ambition_id = Column(Integer, ForeignKey('ambition.id'))
     role_id = Column(Integer, ForeignKey('h2_role.id'))
     ambition = relationship("Ambition", back_populates="tasks")

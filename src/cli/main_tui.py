@@ -13,13 +13,127 @@ from src.services.parser import parse_capture_text
 from src.database.firebase import add_to_inbox, get_inbox_items, delete_inbox_item
 from src.services.todoist import push_task_to_todoist
 from src.database.session import SessionLocal, init_db, APP_ENV
+from src.database.models import Task
 from src.database.crud import (
-    get_all_roles, get_all_ambitions, create_task, get_all_tasks, 
+    get_all_roles, get_all_ambitions, create_task, get_all_tasks,
     update_task_status, create_h2, create_ambition, delete_role, delete_ambition,
-    get_filtered_tasks, get_unique_contexts, record_review, get_last_review
+    get_filtered_tasks, get_unique_contexts, record_review, get_last_review,
+    get_role, get_ambition, update_role, update_ambition, get_ambitions_by_role,
+    get_ambition_stats, get_tasks_by_ambition, update_task,
+    get_ambitions_with_task_counts, get_roles_with_ambition_counts
 )
 
+class EditRoleScreen(Screen):
+    """Screen to edit an existing Role."""
+    CSS = """
+    EditRoleScreen { align: center middle; }
+    #dialog { width: 60%; height: auto; padding: 1 2; border: thick $primary; background: $surface; }
+    .field-label { margin-top: 1; color: $accent; }
+    #actions { margin-top: 1; align: right middle; }
+    Button { margin-left: 1; }
+    """
+    def __init__(self, role_id: int):
+        super().__init__()
+        self.role_id = role_id
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="dialog"):
+            yield Static("[bold]Edit Role (Area of Focus)[/bold]")
+            yield Static("Name:", classes="field-label")
+            yield Input(placeholder="Name", id="role_name")
+            yield Static("Description:", classes="field-label")
+            yield Input(placeholder="Description", id="role_desc")
+            with Horizontal(id="actions"):
+                yield Button("Cancel", variant="error", id="cancel_btn")
+                yield Button("Save Changes", variant="success", id="save_btn")
+
+    def on_mount(self) -> None:
+        db = SessionLocal()
+        role = get_role(db, self.role_id)
+        db.close()
+        if role:
+            self.query_one("#role_name", Input).value = role.name
+            self.query_one("#role_desc", Input).value = role.description or ""
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "cancel_btn":
+            self.app.pop_screen()
+        elif event.button.id == "save_btn":
+            name = self.query_one("#role_name", Input).value
+            desc = self.query_one("#role_desc", Input).value
+            if name:
+                db = SessionLocal()
+                update_role(db, self.role_id, name=name, description=desc)
+                db.close()
+                self.app.pop_screen()
+                self.app.call_after_refresh(self.app.action_refresh_active_view)
+
+class EditAmbitionScreen(Screen):
+    """Screen to edit an existing Ambition."""
+    CSS = """
+    EditAmbitionScreen { align: center middle; }
+    #dialog { width: 60%; height: auto; padding: 1 2; border: thick $primary; background: $surface; }
+    .field-label { margin-top: 1; color: $accent; }
+    #actions { margin-top: 1; align: right middle; }
+    Button { margin-left: 1; }
+    """
+    def __init__(self, ambition_id: int):
+        super().__init__()
+        self.ambition_id = ambition_id
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="dialog"):
+            yield Static("[bold]Edit Ambition (Project)[/bold]")
+            yield Static("Success Outcome:", classes="field-label")
+            yield Input(placeholder="Outcome", id="ambition_outcome")
+            yield Static("Status:", classes="field-label")
+            yield Select([("Active", "active"), ("Stalled", "stalled"), ("Done", "done")], id="status_select")
+            with Horizontal(id="actions"):
+                yield Button("Cancel", variant="error", id="cancel_btn")
+                yield Button("Save Changes", variant="success", id="save_btn")
+
+    def on_mount(self) -> None:
+        db = SessionLocal()
+        ambition = get_ambition(db, self.ambition_id)
+        db.close()
+        if ambition:
+            self.query_one("#ambition_outcome", Input).value = ambition.outcome
+            self.query_one("#status_select", Select).value = ambition.status
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "cancel_btn":
+            self.app.pop_screen()
+        elif event.button.id == "save_btn":
+            outcome = self.query_one("#ambition_outcome", Input).value
+            status = self.query_one("#status_select", Select).value
+            if outcome:
+                db = SessionLocal()
+                update_ambition(db, self.ambition_id, outcome=outcome, status=status)
+                db.close()
+                self.app.pop_screen()
+                self.app.call_after_refresh(self.app.action_refresh_active_view)
+
+class AmbitionStats(Static):
+    """A widget to display statistics for an Ambition."""
+    def __init__(self, **kwargs):
+        super().__init__("Select an ambition to see statistics", **kwargs)
+
+    def update_stats(self, stats: dict) -> None:
+        if not stats:
+            self.update("No statistics available")
+            return
+
+        content = (
+            f"[bold]Project Statistics[/bold]\n"
+            f"Total Hours Spent: [green]{stats['total_hours']}[/green]h\n"
+            f"Tasks Finished (Total): {stats['total_finished']}\n"
+            f"Tasks Finished (Last 2 weeks): [cyan]{stats['finished_2w']}[/cyan]\n"
+            f"Tasks Finished (Last 6 weeks): [cyan]{stats['finished_6w']}[/cyan]"
+        )
+        self.update(content)
+
 class AddRoleScreen(Screen):
+
     """Screen to add a new Role."""
     CSS = """
     AddRoleScreen { align: center middle; }
@@ -535,7 +649,6 @@ class TaskEditScreen(Screen):
     @work(thread=True)
     def save_task(self) -> None:
         from datetime import datetime
-        from src.database.crud import update_task
         
         title = self.query_one("#task_title", Input).value
         status = self.query_one("#status_select", Select).value
@@ -809,23 +922,41 @@ class TasksView(Static):
             db.close()
 
 class HorizonsView(Static):
-    """A view to manage Roles and Ambitions."""
+    """A view to manage Roles and Ambitions with hierarchical filtering and stats."""
     BINDINGS = [
         ("d", "delete_selected", "Delete Selected"),
+        ("e", "edit_selected", "Edit Selected"),
     ]
     CSS = """
     HorizonsView { layout: vertical; }
     .section-header { background: $primary; color: $text; padding: 0 1; margin-top: 1; }
     DataTable { height: 1fr; margin: 0 1; }
     #horizons_actions { padding: 1; align: right middle; height: auto; }
+    .tasks-stats-row { height: 1fr; }
+    #tasks_section { width: 60%; }
+    #stats_section { width: 40%; }
+    #ambition_stats { 
+        padding: 1; 
+        margin: 0 1; 
+        border: solid $accent; 
+        height: 1fr; 
+        background: $surface; 
+    }
     """
     def compose(self) -> ComposeResult:
         yield Static("Roles (Areas of Focus)", classes="section-header")
         yield DataTable(id="roles_table")
         yield Static("Ambitions (Projects)", classes="section-header")
         yield DataTable(id="ambitions_table")
-        yield Static("Tasks for Selected Project", classes="section-header")
-        yield DataTable(id="ambition_tasks_table")
+        
+        with Horizontal(classes="tasks-stats-row"):
+            with Vertical(id="tasks_section"):
+                yield Static("Tasks for Selected Project", classes="section-header")
+                yield DataTable(id="ambition_tasks_table")
+            with Vertical(id="stats_section"):
+                yield Static("Project Statistics", classes="section-header")
+                yield AmbitionStats(id="ambition_stats")
+
         with Horizontal(id="horizons_actions"):
             yield Button("Add Role", variant="primary", id="add_role_btn")
             yield Button("Add Ambition", variant="primary", id="add_ambition_btn")
@@ -834,14 +965,20 @@ class HorizonsView(Static):
         rt = self.query_one("#roles_table", DataTable)
         rt.add_columns("ID", "Name", "Description")
         rt.zebra_stripes = True
+        rt.cursor_type = "row"
         
         at = self.query_one("#ambitions_table", DataTable)
         at.add_columns("ID", "Outcome", "Role", "Status")
         at.zebra_stripes = True
+        at.cursor_type = "row"
 
         tt = self.query_one("#ambition_tasks_table", DataTable)
-        tt.add_columns("Status", "Title", "Energy")
+        tt.add_columns("Status", "Title", "Due", "Spent", "Energy")
         tt.zebra_stripes = True
+        tt.cursor_type = "row"
+        
+        self.selected_role_id = None
+        self.selected_ambition_id = None
         
         self.action_refresh_data()
 
@@ -850,10 +987,19 @@ class HorizonsView(Static):
         db = SessionLocal()
         try:
             roles = get_all_roles(db)
-            ambitions = get_all_ambitions(db)
+            # If a role is selected, only show ambitions for that role
+            if self.selected_role_id:
+                ambitions = get_ambitions_by_role(db, self.selected_role_id)
+            else:
+                ambitions = get_all_ambitions(db)
+                
             role_list = [{"id": r.id, "name": r.name, "desc": r.description} for r in roles]
             ambition_list = [{"id": a.id, "outcome": a.outcome, "role": a.role.name if a.role else "", "status": a.status} for a in ambitions]
+            
             self.app.call_from_thread(self._populate_tables, role_list, ambition_list)
+            
+            if self.selected_ambition_id:
+                self.load_ambition_tasks(self.selected_ambition_id)
         except Exception:
             pass
         finally:
@@ -865,35 +1011,96 @@ class HorizonsView(Static):
         rt.clear(); at.clear()
         for r in roles: rt.add_row(str(r['id']), r['name'], r['desc'], key=str(r['id']))
         for a in ambitions: at.add_row(str(a['id']), a['outcome'], a['role'], a['status'], key=str(a['id']))
+        
+        # Restore selection focus if possible
+        if self.selected_role_id:
+             try: rt.move_cursor(row=rt.get_row_index(str(self.selected_role_id)))
+             except: pass
+        if self.selected_ambition_id:
+             try: at.move_cursor(row=at.get_row_index(str(self.selected_ambition_id)))
+             except: pass
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "add_role_btn":
             self.app.push_screen(AddRoleScreen())
         elif event.button.id == "add_ambition_btn":
-            self.app.push_screen(AddAmbitionScreen())
+            self.app.push_screen(AddAmbitionScreen(initial_role_id=str(self.selected_role_id) if self.selected_role_id else None))
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
-        if event.data_table.id == "ambitions_table":
-            a_id = int(event.row_key.value)
-            self.load_ambition_tasks(a_id)
+        if event.data_table.id == "roles_table":
+            try:
+                self.selected_role_id = int(event.row_key.value)
+                self.selected_ambition_id = None # Clear ambition selection when role changes
+                self.query_one("#ambition_tasks_table", DataTable).clear()
+                self.query_one("#ambition_stats", AmbitionStats).update("Select an ambition to see statistics")
+                self.action_refresh_data()
+            except (ValueError, TypeError):
+                pass
+        elif event.data_table.id == "ambitions_table":
+            try:
+                self.selected_ambition_id = int(event.row_key.value)
+                self.load_ambition_tasks(self.selected_ambition_id)
+            except (ValueError, TypeError):
+                pass
 
     @work(thread=True)
     def load_ambition_tasks(self, ambition_id: int) -> None:
         db = SessionLocal()
         try:
-            from src.database.crud import get_tasks_by_ambition
             tasks = get_tasks_by_ambition(db, ambition_id)
-            task_list = [{"status": t.status, "title": t.title, "energy": t.energy_level} for t in tasks]
-            self.app.call_from_thread(self._populate_tasks_table, task_list)
+            task_list = []
+            for t in tasks:
+                task_list.append({
+                    "status": t.status,
+                    "title": t.title,
+                    "planned_date": t.planned_date,
+                    "actual_time": t.actual_time,
+                    "estimated_time": t.estimated_time,
+                    "energy": t.energy_level
+                })
+            
+            stats = get_ambition_stats(db, ambition_id)
+            
+            self.app.call_from_thread(self._populate_tasks_table, task_list, stats)
         finally:
             db.close()
 
-    def _populate_tasks_table(self, tasks: list) -> None:
+    def _populate_tasks_table(self, tasks: list, stats: dict) -> None:
         tt = self.query_one("#ambition_tasks_table", DataTable)
         tt.clear()
         for t in tasks:
             status_icon = "✅" if t['status'] == "done" else "⭕"
-            tt.add_row(status_icon, t['title'], t['energy'])
+            
+            pd = t.get('planned_date')
+            pd_str = pd.strftime('%m-%d') if pd and hasattr(pd, 'strftime') else (pd if isinstance(pd, str) else "")
+            
+            spent = t.get('actual_time', 0)
+            if spent == 0:
+                spent = t.get('estimated_time', 0)
+            spent_str = f"{spent}m" if spent > 0 else ""
+            
+            tt.add_row(status_icon, t['title'], pd_str, spent_str, t['energy'])
+            
+        self.query_one("#ambition_stats", AmbitionStats).update_stats(stats)
+
+    def action_edit_selected(self) -> None:
+        """Edit the selected Role or Ambition."""
+        if self.query_one("#roles_table").has_focus:
+            table = self.query_one("#roles_table")
+            if table.cursor_row is not None:
+                try:
+                    row_key = table.coordinate_to_cell_key(table.cursor_coordinate).row_key
+                    self.app.push_screen(EditRoleScreen(int(row_key.value)))
+                except Exception:
+                    pass
+        elif self.query_one("#ambitions_table").has_focus:
+            table = self.query_one("#ambitions_table")
+            if table.cursor_row is not None:
+                try:
+                    row_key = table.coordinate_to_cell_key(table.cursor_coordinate).row_key
+                    self.app.push_screen(EditAmbitionScreen(int(row_key.value)))
+                except Exception:
+                    pass
 
     def action_delete_selected(self) -> None:
         """Delete the selected Role or Ambition."""
@@ -921,8 +1128,12 @@ class HorizonsView(Static):
             entity_id = int(row_key.value)
             if entity_type == "role":
                 delete_role(db, entity_id)
+                if self.selected_role_id == entity_id:
+                    self.selected_role_id = None
             else:
                 delete_ambition(db, entity_id)
+                if self.selected_ambition_id == entity_id:
+                    self.selected_ambition_id = None
             self.app.call_from_thread(self._remove_ui_row, entity_type, row_key)
         except Exception as e:
             self.app.notify(f"Delete failed: {e}", severity="error")
@@ -934,6 +1145,9 @@ class HorizonsView(Static):
         self.query_one(table_id, DataTable).remove_row(row_key)
         if entity_type == "ambition":
             self.query_one("#ambition_tasks_table", DataTable).clear()
+            self.query_one("#ambition_stats", AmbitionStats).update("Select an ambition to see statistics")
+        elif entity_type == "role":
+            self.action_refresh_data() # Refresh ambitions list
 
 class ReviewView(VerticalScroll):
     """A guided Weekly Review wizard."""
@@ -1021,7 +1235,6 @@ class ReviewView(VerticalScroll):
     def load_data(self) -> None:
         db = SessionLocal()
         try:
-            from src.database.crud import get_ambitions_with_task_counts, get_roles_with_ambition_counts
             ambitions = get_ambitions_with_task_counts(db)
             roles = get_roles_with_ambition_counts(db)
             self.app.call_from_thread(self._populate_data, ambitions, roles)
@@ -1180,7 +1393,20 @@ class MindWaterApp(App):
 
     def on_mount(self) -> None:
         """Called when app starts."""
-        pass
+        # Initial refresh for all views to ensure data is loaded
+        self.call_after_refresh(self.action_refresh_all_views)
+
+    def action_refresh_all_views(self) -> None:
+        """Refreshes data in all views."""
+        try:
+            self.query_one(InboxListView).action_refresh_data()
+            self.query_one(TasksView).action_refresh_data()
+            self.query_one(TasksView).load_filter_options()
+            self.query_one(HorizonsView).action_refresh_data()
+            self.query_one(ReviewView).action_refresh_data()
+        except Exception:
+            # Some views might not be fully mounted yet, ignore
+            pass
 
     def compose(self) -> ComposeResult:
         yield Header()

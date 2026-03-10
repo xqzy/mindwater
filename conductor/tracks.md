@@ -80,3 +80,8 @@
 
 - [x] **Track: Task Details Editing**
 *Link: [./tracks/task_editing_20260309/](./tracks/task_editing_20260309/)*
+
+---
+
+- [x] **Track: TUI Horizon Refinement: Filtering, Editing, and Statistics**
+*Link: [./tracks/tui_horizon_refinement_20260310/](./tracks/tui_horizon_refinement_20260310/)*
