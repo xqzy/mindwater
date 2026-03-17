@@ -46,10 +46,83 @@
                 </div>
             </div>
 
-            <!-- Other Tabs (Placeholders for now) -->
+            <!-- Inbox Tab -->
             <div id="inbox" class="tab-content">
-                <h2>Inbox Management</h2>
-                <p style="color: var(--text-muted); margin-top: 1rem;">Coming soon: Clarify and organize your captured items.</p>
+                <div class="header-row">
+                    <h2>Inbox Management</h2>
+                    <p class="text-muted">Clarify these items into actions or projects.</p>
+                </div>
+                <div id="inbox-items-full" class="inbox-list">
+                    <!-- Inbox items will be injected here -->
+                </div>
+            </div>
+
+            <!-- Clarify Modal -->
+            <div id="clarify-modal" class="modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>Clarify Item</h3>
+                        <button class="close-modal">&times;</button>
+                    </div>
+                    <form id="clarify-form">
+                        <input type="hidden" id="clarify-item-id">
+                        
+                        <div class="form-group">
+                            <label>Title</label>
+                            <input type="text" id="clarify-title" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Type</label>
+                            <div class="toggle-group">
+                                <label class="toggle-btn active" data-type="task">Next Action</label>
+                                <label class="toggle-btn" data-type="ambition">Project</label>
+                                <input type="hidden" id="clarify-type" value="task">
+                            </div>
+                        </div>
+
+                        <div id="task-fields">
+                            <div class="form-group">
+                                <label>Project (Ambition)</label>
+                                <select id="clarify-ambition">
+                                    <option value="">None (Standalone Task)</option>
+                                    <!-- Options injected here -->
+                                </select>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Energy Level</label>
+                                    <select id="clarify-energy">
+                                        <option value="Low">Low</option>
+                                        <option value="Medium" selected>Medium</option>
+                                        <option value="High">High</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Time (min)</label>
+                                    <input type="number" id="clarify-time" value="0" min="0">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Context Tags (comma separated)</label>
+                                <input type="text" id="clarify-contexts" placeholder="e.g. @home, @computer">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Role</label>
+                            <select id="clarify-role">
+                                <option value="">No specific role</option>
+                                <!-- Options injected here -->
+                            </select>
+                        </div>
+
+                        <div class="modal-footer">
+                            <button type="button" class="btn-secondary" id="clarify-delete-btn">Delete Item</button>
+                            <button type="submit" class="btn-primary">Process Item</button>
+                        </div>
+                    </form>
+                </div>
             </div>
 
             <div id="projects" class="tab-content">
