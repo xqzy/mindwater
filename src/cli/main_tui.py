@@ -12,6 +12,7 @@ from textual import work, on
 from src.services.parser import parse_capture_text
 from src.database.firebase import add_to_inbox, get_inbox_items, delete_inbox_item
 from src.services.todoist import push_task_to_todoist
+from src.services.email_poller import get_flagged_emails
 from src.database.session import SessionLocal, init_db, APP_ENV
 from src.database.models import Task
 from src.database.crud import (
@@ -20,7 +21,8 @@ from src.database.crud import (
     get_filtered_tasks, get_unique_contexts, record_review, get_last_review,
     get_role, get_ambition, update_role, update_ambition, get_ambitions_by_role,
     get_ambition_stats, get_tasks_by_ambition, update_task,
-    get_ambitions_with_task_counts, get_roles_with_ambition_counts
+    get_ambitions_with_task_counts, get_roles_with_ambition_counts,
+    create_dismissed_email, is_email_dismissed
 )
 
 class EditRoleScreen(Screen):
@@ -422,6 +424,241 @@ class InboxClarifyScreen(Screen):
         # Trigger refresh in the main app
         if hasattr(self.app, 'action_refresh_active_view'):
             self.app.action_refresh_active_view()
+
+class EmailClarifyScreen(Screen):
+    """A screen for clarifying an email into a task."""
+    CSS = """
+    EmailClarifyScreen { align: center middle; }
+    #dialog { width: 80%; height: auto; padding: 1 2; border: thick $primary; background: $surface; }
+    .field-label { margin-top: 1; color: $accent; }
+    #actions { margin-top: 1; align: right middle; }
+    Button { margin-left: 1; }
+    """
+
+    def __init__(self, email_data: dict):
+        super().__init__()
+        self.email_data = email_data
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="dialog"):
+            yield Static(f"[bold]Convert Email to Task:[/bold]\nFrom: {self.email_data['from']}\nSubject: {self.email_data['subject']}")
+            
+            yield Static("Task Title:", classes="field-label")
+            yield Input(value=self.email_data['subject'], id="task_title")
+            
+            yield Static("Role:", classes="field-label")
+            yield Select([], id="role_select", prompt="Select a Role")
+            
+            yield Static("Ambition (Optional):", classes="field-label")
+            yield Select([], id="ambition_select", prompt="Select an Ambition")
+            
+            yield Static("Energy Level:", classes="field-label")
+            yield Select([("Low", "Low"), ("Medium", "Medium"), ("High", "High")], value="Medium", id="energy_select")
+            
+            with Horizontal(id="actions"):
+                yield Button("Cancel", variant="error", id="cancel_btn")
+                yield Button("Create Task", variant="success", id="save_btn")
+
+    def on_mount(self) -> None:
+        self.load_db_options()
+
+    @work(thread=True)
+    def load_db_options(self) -> None:
+        db = SessionLocal()
+        try:
+            roles = get_all_roles(db)
+            ambitions = get_all_ambitions(db)
+            role_options = [(r.name, str(r.id)) for r in roles]
+            ambition_options = [(a.outcome, str(a.id)) for a in ambitions]
+            self.app.call_from_thread(self._update_selects, role_options, ambition_options)
+        finally:
+            db.close()
+
+    def _update_selects(self, role_options, ambition_options) -> None:
+        self.query_one("#role_select", Select).set_options(role_options)
+        self.query_one("#ambition_select", Select).set_options(ambition_options)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "cancel_btn":
+            self.app.pop_screen()
+        elif event.button.id == "save_btn":
+            self.save_task()
+
+    @work(thread=True)
+    def save_task(self) -> None:
+        title = self.query_one("#task_title", Input).value
+        role_id = self.query_one("#role_select", Select).value
+        ambition_id = self.query_one("#ambition_select", Select).value
+        energy = self.query_one("#energy_select", Select).value
+        
+        r_id = int(role_id) if isinstance(role_id, str) else None
+        a_id = int(ambition_id) if isinstance(ambition_id, str) else None
+        
+        if not title:
+            return 
+
+        db = SessionLocal()
+        try:
+            # 1. Save to SQLite
+            create_task(db, title=title, role_id=r_id, ambition_id=a_id, energy_level=energy)
+            # 2. Mark email as dismissed so it doesn't show up again
+            create_dismissed_email(db, self.email_data['id'])
+            # 3. Success
+            self.app.call_from_thread(self.finish_clarify)
+        finally:
+            db.close()
+
+    def finish_clarify(self) -> None:
+        self.app.pop_screen()
+        if hasattr(self.app, 'action_refresh_active_view'):
+            self.app.action_refresh_active_view()
+
+class FollowupView(Static):
+    """A view to display flagged emails for follow-up."""
+    BINDINGS = [("d", "dismiss_selected", "Dismiss Email"), ("r", "refresh_data", "Refresh Emails")]
+
+    CSS = """
+    FollowupView {
+        height: 1fr;
+    }
+    #followup_split {
+        height: 1fr;
+    }
+    #email_list_container {
+        height: 40%;
+    }
+    #email_body_container {
+        height: 60%;
+        border-top: solid $primary;
+        padding: 1 2;
+        background: $surface;
+    }
+    #email_body_text {
+        height: 1fr;
+    }
+    .email-detail-label {
+        color: $accent;
+        text-style: bold;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="followup_split"):
+            with Vertical(id="email_list_container"):
+                yield Static("Fetching flagged emails...", id="loading_emails", classes="status-msg")
+                yield Static("No flagged emails found in the last 2 weeks.", id="empty_emails", classes="status-msg")
+                yield Static("Error loading emails.", id="error_emails", classes="status-msg")
+                
+                table = DataTable(id="emails_table")
+                table.display = False
+                yield table
+            
+            with Vertical(id="email_body_container"):
+                yield Static("Select an email to view contents", id="body_placeholder")
+                with VerticalScroll(id="body_content_scroll"):
+                    yield Label("", id="email_body_text")
+
+    def on_mount(self) -> None:
+        table = self.query_one("#emails_table", DataTable)
+        table.add_columns("Date", "From", "Subject")
+        table.cursor_type = "row"
+        table.zebra_stripes = True
+        self.query_one("#body_content_scroll").display = False
+        self.action_refresh_data()
+
+    @work(exclusive=True, thread=True)
+    def action_refresh_data(self) -> None:
+        self.app.call_from_thread(self._set_status, "loading")
+        
+        db = SessionLocal()
+        try:
+            user = os.getenv("EMAIL_USER")
+            password = os.getenv("EMAIL_PASSWORD")
+            host = os.getenv("EMAIL_IMAP_HOST")
+            
+            if not all([user, password, host]):
+                self.app.call_from_thread(self._set_status, "error", "Email credentials missing in .env")
+                return
+
+            emails = get_flagged_emails(db, user, password, host)
+            self.app.call_from_thread(self._populate_table, emails)
+        except Exception as e:
+            self.app.call_from_thread(self._set_status, "error", str(e))
+        finally:
+            db.close()
+
+    def _set_status(self, status: str, error_msg: str = "") -> None:
+        self.query_one("#loading_emails").display = (status == "loading")
+        self.query_one("#empty_emails").display = (status == "empty")
+        self.query_one("#error_emails").display = (status == "error")
+        table = self.query_one("#emails_table", DataTable)
+        table.display = (status == "success")
+        if status == "error" and error_msg:
+            self.query_one("#error_emails").update(f"Error: {error_msg}")
+
+    def _populate_table(self, emails: list) -> None:
+        table = self.query_one("#emails_table", DataTable)
+        table.clear()
+        if not emails:
+            self._set_status("empty")
+        else:
+            self.email_map = {e['id']: e for e in emails}
+            for e in emails:
+                table.add_row(e['date'], e['from'], e['subject'], key=e['id'])
+            self._set_status("success")
+            table.focus()
+
+    @on(DataTable.RowHighlighted)
+    def on_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
+        """Show body when highlighted (using cursor keys)."""
+        email_id = event.row_key.value
+        self.update_body_view(email_id)
+
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Clarify when selected (Enter)."""
+        email_id = event.row_key.value
+        email_data = self.email_map.get(email_id)
+        if email_data:
+            self.app.push_screen(EmailClarifyScreen(email_data))
+
+    def update_body_view(self, email_id: str) -> None:
+        email_data = self.email_map.get(email_id)
+        if email_data:
+            self.query_one("#body_placeholder").display = False
+            scroll = self.query_one("#body_content_scroll")
+            scroll.display = True
+            
+            body_text = email_data.get('body', '(No content)')
+            # Simple sanitization for Rich markup if needed, but Label handles plain text well
+            self.query_one("#email_body_text", Label).update(body_text)
+            scroll.scroll_to(0, 0)
+
+    def action_dismiss_selected(self) -> None:
+        table = self.query_one("#emails_table", DataTable)
+        if table.cursor_row is not None:
+            try:
+                row_key = table.coordinate_to_cell_key(table.cursor_coordinate).row_key
+                email_id = row_key.value
+                self.dismiss_email_task(email_id, row_key)
+            except Exception:
+                pass
+
+    @work(thread=True)
+    def dismiss_email_task(self, email_id: str, row_key) -> None:
+        db = SessionLocal()
+        try:
+            create_dismissed_email(db, email_id)
+            self.app.call_from_thread(self._remove_row_ui, row_key)
+        finally:
+            db.close()
+
+    def _remove_row_ui(self, row_key) -> None:
+        table = self.query_one("#emails_table", DataTable)
+        table.remove_row(row_key)
+        if table.row_count == 0:
+            self._set_status("empty")
+            self.query_one("#body_content_scroll").display = False
+            self.query_one("#body_placeholder").display = True
 
 class CaptureView(Static):
     """A view for rapid capture into GTD Inbox."""
@@ -1383,6 +1620,7 @@ class MindWaterApp(App):
     
     BINDINGS = [
         ("q", "quit", "Quit"),
+        ("ctrl+f", "switch_tab('followup')", "Follow-up"),
         ("ctrl+c", "switch_tab('capture')", "Capture"),
         ("ctrl+l", "switch_tab('inbox')", "Inbox"),
         ("ctrl+t", "switch_tab('tasks')", "Tasks"),
@@ -1399,6 +1637,7 @@ class MindWaterApp(App):
     def action_refresh_all_views(self) -> None:
         """Refreshes data in all views."""
         try:
+            self.query_one(FollowupView).action_refresh_data()
             self.query_one(InboxListView).action_refresh_data()
             self.query_one(TasksView).action_refresh_data()
             self.query_one(TasksView).load_filter_options()
@@ -1410,7 +1649,9 @@ class MindWaterApp(App):
 
     def compose(self) -> ComposeResult:
         yield Header()
-        with TabbedContent(initial="capture", id="main_tabs"):
+        with TabbedContent(initial="followup", id="main_tabs"):
+            with TabPane("Follow-up", id="followup"):
+                yield FollowupView()
             with TabPane("Capture", id="capture"):
                 yield CaptureView()
             with TabPane("Inbox", id="inbox"):
@@ -1428,7 +1669,9 @@ class MindWaterApp(App):
 
     def action_refresh_active_view(self) -> None:
         active_tab = self.query_one(TabbedContent).active
-        if active_tab == "inbox":
+        if active_tab == "followup":
+            self.query_one(FollowupView).action_refresh_data()
+        elif active_tab == "inbox":
             self.query_one(InboxListView).action_refresh_data()
         elif active_tab == "tasks":
             self.query_one(TasksView).action_refresh_data()
@@ -1438,7 +1681,9 @@ class MindWaterApp(App):
             self.query_one(ReviewView).action_refresh_data()
 
     def on_tabbed_content_tab_activated(self, event: TabbedContent.TabActivated) -> None:
-        if event.tab.id == "inbox":
+        if event.tab.id == "followup":
+            self.query_one(FollowupView).action_refresh_data()
+        elif event.tab.id == "inbox":
             self.query_one(InboxListView).action_refresh_data()
         elif event.tab.id == "tasks":
             self.query_one(TasksView).action_refresh_data()

@@ -1,0 +1,18 @@
+services:
+  mindwater:
+    build: .
+    container_name: mindwater
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=production
+      - DATABASE_PATH=/app/data/gtd.db
+      - EMAIL_IMAP_HOST=${EMAIL_IMAP_HOST}
+      - EMAIL_USER=${EMAIL_USER}
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD}
+    volumes:
+      - ./data:/app/data
+    restart: always
+
+volumes:
+  data:

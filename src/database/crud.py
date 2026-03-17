@@ -234,6 +234,17 @@ def create_inbox_item(db: Session, raw_text: str, source_tag: str = "manual"):
     db.refresh(db_inbox)
     return db_inbox
 
+# Dismissed Emails
+def create_dismissed_email(db: Session, email_id: str):
+    db_dismissed = models.DismissedEmail(email_id=email_id)
+    db.add(db_dismissed)
+    db.commit()
+    db.refresh(db_dismissed)
+    return db_dismissed
+
+def is_email_dismissed(db: Session, email_id: str):
+    return db.query(models.DismissedEmail).filter(models.DismissedEmail.email_id == email_id).first() is not None
+
 def delete_role(db: Session, role_id: int):
     db_role = db.query(models.Horizon2).filter(models.Horizon2.id == role_id).first()
     if db_role:

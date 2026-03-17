@@ -74,3 +74,9 @@ class Inbox(Base):
     raw_text = Column(String, nullable=False)
     source_tag = Column(String, default="manual")
     timestamp = Column(DateTime, default=lambda: datetime.now(UTC))
+
+class DismissedEmail(Base):
+    __tablename__ = 'dismissed_email'
+    id = Column(Integer, primary_key=True)
+    email_id = Column(String, unique=True, nullable=False) # Message-ID or UID
+    dismissed_at = Column(DateTime, default=lambda: datetime.now(UTC))

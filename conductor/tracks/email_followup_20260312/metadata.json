@@ -1,0 +1,8 @@
+{
+  "track_id": "email_followup_20260312",
+  "type": "feature",
+  "status": "completed",
+  "created_at": "2026-03-12T10:00:00Z",
+  "updated_at": "2026-03-12T11:00:00Z",
+  "description": "Create a new TUI screen for managing flagged emails, allowing them to be converted into actions or dismissed from the view."
+}

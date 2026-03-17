@@ -2,6 +2,7 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from .models import Base
+from .backup import rotate_backups
 from dotenv import load_dotenv
 
 # Ensure environment variables are loaded
@@ -12,15 +13,19 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 
 # Determine environment (default to production for safety)
 APP_ENV = os.environ.get("APP_ENV", "production")
+DATABASE_PATH_ENV = os.environ.get("DATABASE_PATH")
 
-if APP_ENV == "development":
-    DATABASE_FILE = "gtd_dev.db"
-elif APP_ENV == "test":
-    DATABASE_FILE = "test_gtd.db"
+if DATABASE_PATH_ENV:
+    DATABASE_PATH = DATABASE_PATH_ENV
 else:
-    DATABASE_FILE = "gtd.db"
+    if APP_ENV == "development":
+        DATABASE_FILE = "gtd_dev.db"
+    elif APP_ENV == "test":
+        DATABASE_FILE = "test_gtd.db"
+    else:
+        DATABASE_FILE = "gtd.db"
+    DATABASE_PATH = os.path.join(BASE_DIR, DATABASE_FILE)
 
-DATABASE_PATH = os.path.join(BASE_DIR, DATABASE_FILE)
 DATABASE_URL = f"sqlite:///{DATABASE_PATH}"
 
 # Print warning for production
@@ -37,6 +42,9 @@ def init_db():
     In development/test, it's okay to create all.
     In production, this should be handled by migrations.
     """
+    if APP_ENV == "production" and os.path.exists(DATABASE_PATH):
+        rotate_backups(DATABASE_PATH)
+
     if APP_ENV != "production" or not os.path.exists(DATABASE_PATH):
         Base.metadata.create_all(bind=engine)
 

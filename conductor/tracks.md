@@ -85,3 +85,8 @@
 
 - [x] **Track: TUI Horizon Refinement: Filtering, Editing, and Statistics**
 *Link: [./tracks/tui_horizon_refinement_20260310/](./tracks/tui_horizon_refinement_20260310/)*
+
+---
+
+- [x] **Track: Email Follow-up Screen**
+*Link: [./tracks/email_followup_20260312/](./tracks/email_followup_20260312/)*
