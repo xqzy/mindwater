@@ -7,6 +7,10 @@ from src.services.parser import parse_capture_text
 
 app = FastAPI()
 
+@app.get("/")
+def read_root():
+    return {"status": "Mindwater API is running", "environment": "production"}
+
 class CaptureRequest(BaseModel):
     text: str
     source: str = "api"
