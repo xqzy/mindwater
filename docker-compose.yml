@@ -2,17 +2,25 @@ services:
   mindwater:
     build: .
     container_name: mindwater
+    # Access your app at http://[NAS-IP]:8080
     ports:
-      - "8000:8000"
+      - "8080:8000"
     environment:
       - APP_ENV=production
       - DATABASE_PATH=/app/data/gtd.db
+      # These will be pulled from your .env file in the same folder
       - EMAIL_IMAP_HOST=${EMAIL_IMAP_HOST}
       - EMAIL_USER=${EMAIL_USER}
       - EMAIL_PASSWORD=${EMAIL_PASSWORD}
     volumes:
+      # BIND MOUNT: Map the 'data' folder on your NAS to the container.
+      # This allows you to backup gtd.db using Synology Hyper Backup easily.
       - ./data:/app/data
+    # Ensure the app starts automatically when the NAS reboots
     restart: always
-
-volumes:
-  data:
+    # Useful for debugging on Synology
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
