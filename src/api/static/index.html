@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mindwater GTD</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="sidebar">
+        <h1>Mindwater</h1>
+        <div class="nav-list">
+            <a href="#" class="nav-item active" data-tab="capture">
+                <i class="fas fa-bolt"></i> &nbsp; Capture
+            </a>
+            <a href="#" class="nav-item" data-tab="inbox">
+                <i class="fas fa-inbox"></i> &nbsp; Inbox
+            </a>
+            <a href="#" class="nav-item" data-tab="projects">
+                <i class="fas fa-list-check"></i> &nbsp; Projects
+            </a>
+            <a href="#" class="nav-item" data-tab="review">
+                <i class="fas fa-calendar-check"></i> &nbsp; Review
+            </a>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="container">
+            <!-- Capture Tab -->
+            <div id="capture" class="tab-content active">
+                <div class="capture-box">
+                    <h2>What's on your mind?</h2>
+                    <textarea id="capture-input" placeholder="Type an idea, task, or note... (Ctrl+Enter to save)"></textarea>
+                    <div style="display: flex; justify-content: flex-end;">
+                        <button id="capture-btn" class="primary">Capture</button>
+                    </div>
+                </div>
+
+                <div class="recent-list">
+                    <h3>Recently Captured</h3>
+                    <div id="recent-items">
+                        <!-- Items will be injected here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Other Tabs (Placeholders for now) -->
+            <div id="inbox" class="tab-content">
+                <h2>Inbox Management</h2>
+                <p style="color: var(--text-muted); margin-top: 1rem;">Coming soon: Clarify and organize your captured items.</p>
+            </div>
+
+            <div id="projects" class="tab-content">
+                <h2>Projects & Horizons</h2>
+                <p style="color: var(--text-muted); margin-top: 1rem;">Coming soon: Manage your roles, visions, and ambitions.</p>
+            </div>
+
+            <div id="review" class="tab-content">
+                <h2>Weekly Review</h2>
+                <p style="color: var(--text-muted); margin-top: 1rem;">Coming soon: A guided process to get clear and current.</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

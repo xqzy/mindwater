@@ -234,6 +234,16 @@ def create_inbox_item(db: Session, raw_text: str, source_tag: str = "manual"):
     db.refresh(db_inbox)
     return db_inbox
 
+def get_inbox_items(db: Session, limit: int = 50):
+    return db.query(models.Inbox).order_by(models.Inbox.timestamp.desc()).limit(limit).all()
+
+def delete_inbox_item(db: Session, item_id: int):
+    db_item = db.query(models.Inbox).filter(models.Inbox.id == item_id).first()
+    if db_item:
+        db.delete(db_item)
+        db.commit()
+    return db_item
+
 # Dismissed Emails
 def create_dismissed_email(db: Session, email_id: str):
     db_dismissed = models.DismissedEmail(email_id=email_id)
