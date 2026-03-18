@@ -11,14 +11,20 @@
     <div class="sidebar">
         <h1>Mindwater</h1>
         <div class="nav-list">
-            <a href="#" class="nav-item active" data-tab="capture">
+            <a href="#" class="nav-item active" data-tab="followup">
+                <i class="fas fa-envelope-open-text"></i> &nbsp; Follow-up
+            </a>
+            <a href="#" class="nav-item" data-tab="capture">
                 <i class="fas fa-bolt"></i> &nbsp; Capture
             </a>
             <a href="#" class="nav-item" data-tab="inbox">
                 <i class="fas fa-inbox"></i> &nbsp; Inbox
             </a>
+            <a href="#" class="nav-item" data-tab="tasks">
+                <i class="fas fa-check-double"></i> &nbsp; Tasks
+            </a>
             <a href="#" class="nav-item" data-tab="projects">
-                <i class="fas fa-list-check"></i> &nbsp; Projects
+                <i class="fas fa-list-check"></i> &nbsp; Horizons
             </a>
             <a href="#" class="nav-item" data-tab="review">
                 <i class="fas fa-calendar-check"></i> &nbsp; Review
@@ -28,8 +34,19 @@
 
     <div class="main-content">
         <div class="container">
+            <!-- Follow-up Tab -->
+            <div id="followup" class="tab-content active">
+                <div class="header-row">
+                    <h2>Email Follow-up</h2>
+                    <p class="text-muted">Flagged emails from the last 14 days.</p>
+                </div>
+                <div id="email-list" class="inbox-list">
+                    <!-- Emails injected here -->
+                </div>
+            </div>
+
             <!-- Capture Tab -->
-            <div id="capture" class="tab-content active">
+            <div id="capture" class="tab-content">
                 <div class="capture-box">
                     <h2>What's on your mind?</h2>
                     <textarea id="capture-input" placeholder="Type an idea, task, or note... (Ctrl+Enter to save)"></textarea>
@@ -57,15 +74,127 @@
                 </div>
             </div>
 
-            <!-- Clarify Modal -->
+            <!-- Tasks Tab -->
+            <div id="tasks" class="tab-content">
+                <div class="header-row">
+                    <h2>Action List</h2>
+                    <div class="filter-bar">
+                        <select id="filter-role"><option value="">All Roles</option></select>
+                        <select id="filter-energy">
+                            <option value="">All Energy</option>
+                            <option value="Low">Low</option>
+                            <option value="Medium">Medium</option>
+                            <option value="High">High</option>
+                        </select>
+                        <button id="clear-filters" class="btn-secondary">Clear</button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th width="40"></th>
+                                <th>Task</th>
+                                <th>Role</th>
+                                <th>Context</th>
+                                <th width="100">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tasks-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Horizons Tab -->
+            <div id="projects" class="tab-content">
+                <div class="header-row">
+                    <h2>Horizons of Focus</h2>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button id="add-role-btn" class="btn-primary">Add Role</button>
+                        <button id="add-ambition-btn" class="btn-primary">Add Project</button>
+                    </div>
+                </div>
+                
+                <div class="horizons-grid">
+                    <div class="horizon-section">
+                        <h3>Roles (Areas)</h3>
+                        <div id="roles-list" class="item-grid"></div>
+                    </div>
+                    <div class="horizon-section">
+                        <h3>Projects (Ambitions)</h3>
+                        <div id="ambitions-list" class="item-grid"></div>
+                    </div>
+                </div>
+
+                <div id="ambition-detail" class="detail-pane" style="display: none;">
+                    <div class="detail-header">
+                        <h3 id="detail-title">Project Details</h3>
+                        <button class="close-detail">&times;</button>
+                    </div>
+                    <div class="stats-row" id="detail-stats"></div>
+                    <h4>Next Actions</h4>
+                    <div id="detail-tasks" class="mini-task-list"></div>
+                </div>
+            </div>
+
+            <!-- Review Tab -->
+            <div id="review" class="tab-content">
+                <div class="header-row">
+                    <h2>Weekly Review</h2>
+                    <p id="last-review-date" class="text-muted"></p>
+                </div>
+                
+                <div class="wizard-container">
+                    <div class="wizard-steps">
+                        <div class="step active" data-step="1">1. Mind Dump</div>
+                        <div class="step" data-step="2">2. Projects</div>
+                        <div class="step" data-step="3">3. Areas</div>
+                        <div class="step" data-step="4">4. Wrap Up</div>
+                    </div>
+
+                    <div id="step-1" class="wizard-pane active">
+                        <h3>Empty Your Head</h3>
+                        <p>Capture everything currently on your mind.</p>
+                        <textarea id="review-capture" placeholder="Enter one item at a time..."></textarea>
+                        <div id="review-capture-feedback" class="text-muted"></div>
+                    </div>
+
+                    <div id="step-2" class="wizard-pane">
+                        <h3>Review Projects</h3>
+                        <p>Ensure every project has at least one Next Action.</p>
+                        <div id="review-projects-list" class="inbox-list"></div>
+                    </div>
+
+                    <div id="step-3" class="wizard-pane">
+                        <h3>Review Areas of Focus</h3>
+                        <p>Are your roles healthy and moving forward?</p>
+                        <div id="review-roles-list" class="inbox-list"></div>
+                    </div>
+
+                    <div id="step-4" class="wizard-pane">
+                        <h3>Review Complete!</h3>
+                        <p>You are clear, current, and creative.</p>
+                        <div class="summary-box" id="review-summary"></div>
+                        <button id="complete-review-btn" class="btn-primary" style="width: 100%; margin-top: 2rem;">Finish Review</button>
+                    </div>
+
+                    <div class="wizard-nav">
+                        <button id="prev-step" class="btn-secondary">Previous</button>
+                        <button id="next-step" class="btn-primary">Next Step</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Clarify Modal (Used by Inbox & Followup) -->
             <div id="clarify-modal" class="modal">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h3>Clarify Item</h3>
+                        <h3 id="clarify-modal-title">Clarify Item</h3>
                         <button class="close-modal">&times;</button>
                     </div>
                     <form id="clarify-form">
                         <input type="hidden" id="clarify-item-id">
+                        <input type="hidden" id="clarify-email-id">
                         
                         <div class="form-group">
                             <label>Title</label>
@@ -86,7 +215,6 @@
                                 <label>Project (Ambition)</label>
                                 <select id="clarify-ambition">
                                     <option value="">None (Standalone Task)</option>
-                                    <!-- Options injected here -->
                                 </select>
                             </div>
                             <div class="form-row">
@@ -113,26 +241,109 @@
                             <label>Role</label>
                             <select id="clarify-role">
                                 <option value="">No specific role</option>
-                                <!-- Options injected here -->
                             </select>
                         </div>
 
                         <div class="modal-footer">
-                            <button type="button" class="btn-secondary" id="clarify-delete-btn">Delete Item</button>
+                            <button type="button" class="btn-secondary" id="clarify-delete-btn">Delete / Dismiss</button>
                             <button type="submit" class="btn-primary">Process Item</button>
                         </div>
                     </form>
                 </div>
             </div>
 
-            <div id="projects" class="tab-content">
-                <h2>Projects & Horizons</h2>
-                <p style="color: var(--text-muted); margin-top: 1rem;">Coming soon: Manage your roles, visions, and ambitions.</p>
+            <!-- Role/Ambition Modal -->
+            <div id="horizon-modal" class="modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3 id="horizon-modal-title">Add Horizon</h3>
+                        <button class="close-modal">&times;</button>
+                    </div>
+                    <form id="horizon-form">
+                        <input type="hidden" id="horizon-id">
+                        <input type="hidden" id="horizon-type">
+                        
+                        <div class="form-group">
+                            <label id="horizon-label">Name</label>
+                            <input type="text" id="horizon-name" required>
+                        </div>
+
+                        <div id="role-extra-fields">
+                            <div class="form-group">
+                                <label>Description</label>
+                                <input type="text" id="role-description">
+                            </div>
+                        </div>
+
+                        <div id="ambition-extra-fields">
+                            <div class="form-group">
+                                <label>Role</label>
+                                <select id="ambition-role-select"></select>
+                            </div>
+                            <div class="form-group">
+                                <label>Status</label>
+                                <select id="ambition-status-select">
+                                    <option value="active">Active</option>
+                                    <option value="stalled">Stalled</option>
+                                    <option value="done">Done</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="modal-footer">
+                            <button type="button" class="btn-secondary" id="horizon-delete-btn">Delete</button>
+                            <button type="submit" class="btn-primary">Save</button>
+                        </div>
+                    </form>
+                </div>
             </div>
 
-            <div id="review" class="tab-content">
-                <h2>Weekly Review</h2>
-                <p style="color: var(--text-muted); margin-top: 1rem;">Coming soon: A guided process to get clear and current.</p>
+            <!-- Task Edit Modal -->
+            <div id="task-edit-modal" class="modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>Edit Task</h3>
+                        <button class="close-modal">&times;</button>
+                    </div>
+                    <form id="task-edit-form">
+                        <input type="hidden" id="edit-task-id">
+                        <div class="form-group">
+                            <label>Title</label>
+                            <input type="text" id="edit-task-title" required>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Role</label>
+                                <select id="edit-task-role"></select>
+                            </div>
+                            <div class="form-group">
+                                <label>Ambition</label>
+                                <select id="edit-task-ambition"></select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Energy</label>
+                                <select id="edit-task-energy">
+                                    <option value="Low">Low</option>
+                                    <option value="Medium">Medium</option>
+                                    <option value="High">High</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Time (min)</label>
+                                <input type="number" id="edit-task-time">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Contexts</label>
+                            <input type="text" id="edit-task-contexts">
+                        </div>
+                        <div class="modal-footer">
+                            <button type="submit" class="btn-primary" style="width: 100%;">Save Changes</button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
     </div>

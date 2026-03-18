@@ -101,6 +101,7 @@ def get_ambitions_with_task_counts(db: Session, status: str = "active"):
         results.append({
             "id": a.id,
             "outcome": a.outcome,
+            "role_id": a.h2_id,
             "role_name": a.role.name if a.role else "",
             "status": a.status,
             "todo_count": todo_count

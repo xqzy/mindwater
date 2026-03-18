@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-TODOIST_API_URL = "https://api.todoist.com/api/v1/tasks"
+TODOIST_API_URL = "https://api.todoist.com/rest/v1/tasks"
 
 def get_todoist_token() -> str:
     """Retrieves the Todoist token from the credentials JSON file."""
