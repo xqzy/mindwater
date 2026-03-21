@@ -1,6 +1,6 @@
 :root {
-    --primary: #2563eb;
-    --primary-dark: #1d4ed8;
+    --primary: #34C759;
+    --primary-dark: #28a745;
     --bg: #f8fafc;
     --sidebar-bg: #1e293b;
     --text-main: #0f172a;
@@ -32,6 +32,8 @@ body {
     display: flex;
     flex-direction: column;
     padding: 1.5rem;
+    flex-shrink: 0;
+    z-index: 100;
 }
 
 .sidebar h1 {
@@ -41,7 +43,14 @@ body {
     color: var(--white);
 }
 
+.nav-list {
+    display: flex;
+    flex-direction: column;
+}
+
 .nav-item {
+    display: flex;
+    align-items: center;
     padding: 0.75rem 1rem;
     margin-bottom: 0.5rem;
     border-radius: 0.5rem;
@@ -50,6 +59,12 @@ body {
     color: #94a3b8;
     text-decoration: none;
     font-weight: 500;
+}
+
+.nav-item i {
+    width: 20px;
+    margin-right: 10px;
+    text-align: center;
 }
 
 .nav-item:hover {
@@ -535,6 +550,67 @@ button.primary:hover {
 
 /* Responsive Extensions */
 @media (max-width: 768px) {
+    body {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        width: 100%;
+        height: auto;
+        padding: 0.75rem 1rem;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        position: sticky;
+        top: 0;
+    }
+
+    .sidebar h1 {
+        margin-bottom: 0;
+        font-size: 1.1rem;
+        margin-right: 1rem;
+    }
+
+    .nav-list {
+        flex-direction: row;
+        overflow-x: auto;
+        gap: 0.25rem;
+        padding-bottom: 0;
+        scrollbar-width: none; /* Hide scrollbar Firefox */
+    }
+
+    .nav-list::-webkit-scrollbar {
+        display: none; /* Hide scrollbar Chrome/Safari */
+    }
+
+    .nav-item {
+        margin-bottom: 0;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.85rem;
+        white-space: nowrap;
+    }
+
+    .nav-item i {
+        margin-right: 5px;
+    }
+
+    .main-content {
+        padding: 1rem;
+        height: auto;
+        overflow-y: visible;
+    }
+
     .horizons-grid { grid-template-columns: 1fr; }
     .filter-bar { flex-direction: column; }
+    
+    .form-row { flex-direction: column; gap: 0; }
+    
+    .wizard-steps {
+        flex-wrap: wrap;
+    }
+    .step {
+        flex: 1 0 50%;
+        border-bottom: 1px solid var(--border);
+    }
 }
+
