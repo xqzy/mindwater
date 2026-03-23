@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentTasks = [];
     let todoistEnabled = false;
     let currentTab = 'followup';
+    let selectedRoleId = null;
 
     // --- Selectors ---
     const navItems = document.querySelectorAll('.nav-item');
@@ -382,24 +383,66 @@ document.addEventListener('DOMContentLoaded', () => {
         const rolesList = document.getElementById('roles-list');
         const ambitionsList = document.getElementById('ambitions-list');
         
-        rolesList.innerHTML = currentRoles.map(role => `
-            <div class="horizon-card" onclick="openHorizonModal('role', ${role.id})">
-                <div style="font-weight: 600;">${role.name}</div>
-                <div class="text-muted" style="font-size: 0.875rem;">${role.description || ''}</div>
+        // Render Roles Sidebar
+        let rolesHtml = `
+            <div class="horizon-card role-card ${selectedRoleId === null ? 'active' : ''}" onclick="selectRole(null)">
+                <div style="font-weight: 600;">All Projects</div>
+                <div class="text-muted" style="font-size: 0.75rem;">Show everything</div>
             </div>
-        `).join('');
-
-        ambitionsList.innerHTML = currentAmbitions.map(a => `
-            <div class="horizon-card" onclick="showAmbitionDetail(${a.id})">
-                <div style="font-weight: 600;">${a.outcome}</div>
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem;">
-                    <span class="text-muted" style="font-size: 0.75rem;">${a.role_name}</span>
-                    <span class="badge ${a.todo_count === 0 ? 'warning' : 'success'}" style="font-size: 0.75rem;">
-                        ${a.todo_count} actions
-                    </span>
+        `;
+        
+        rolesHtml += currentRoles.map(role => `
+            <div class="horizon-card role-card ${selectedRoleId === role.id ? 'active' : ''}" onclick="selectRole(${role.id})">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="font-weight: 600;">${role.name}</div>
+                    <button class="btn-icon" onclick="event.stopPropagation(); openHorizonModal('role', ${role.id})">
+                        <i class="fas fa-gear" style="font-size: 0.75rem;"></i>
+                    </button>
                 </div>
             </div>
         `).join('');
+        rolesList.innerHTML = rolesHtml;
+
+        // Filter and Render Projects
+        const filteredProjects = selectedRoleId 
+            ? currentAmbitions.filter(a => a.role_id === selectedRoleId)
+            : currentAmbitions;
+
+        if (filteredProjects.length === 0) {
+            ambitionsList.innerHTML = '<div class="text-muted" style="grid-column: 1/-1; text-align: center; padding: 2rem;">No projects found for this role.</div>';
+            return;
+        }
+
+        ambitionsList.innerHTML = filteredProjects.map(a => {
+            const total = a.todo_count + a.done_count;
+            const percent = total > 0 ? Math.round((a.done_count / total) * 100) : 0;
+            const isStalled = a.todo_count === 0 && a.status === 'active';
+
+            return `
+                <div class="horizon-card project-card" onclick="showAmbitionDetail(${a.id})">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                        <div class="card-title">${a.outcome}</div>
+                        ${isStalled ? '<span class="stalled-badge">Stalled</span>' : ''}
+                    </div>
+                    
+                    <div style="margin-top: auto;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 0.25rem;">
+                            <span class="text-muted" style="font-size: 0.75rem;">${a.role_name}</span>
+                            <span class="progress-text">${a.done_count}/${total} done</span>
+                        </div>
+                        <div class="progress-container">
+                            <div class="progress-bar" style="width: ${percent}%"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    };
+
+    window.selectRole = (roleId) => {
+        selectedRoleId = roleId;
+        renderHorizons();
+        document.getElementById('ambition-detail').style.display = 'none';
     };
 
     window.showAmbitionDetail = async (id) => {
@@ -434,7 +477,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Selection highlight
         document.querySelectorAll('#ambitions-list .horizon-card').forEach(c => c.classList.remove('active'));
-        // Find the card and add active class (simplified)
+        const activeCard = Array.from(document.querySelectorAll('#ambitions-list .horizon-card'))
+            .find(c => c.innerHTML.includes(ambition.outcome)); // Simple check
+        if (activeCard) activeCard.classList.add('active');
+
+        // Scroll detail into view if on mobile
+        if (window.innerWidth <= 768) {
+            detailPane.scrollIntoView({ behavior: 'smooth' });
+        }
     };
 
     document.querySelector('.close-detail').onclick = () => {

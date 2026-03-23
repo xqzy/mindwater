@@ -115,28 +115,33 @@
                     </div>
                 </div>
                 
-                <div class="horizons-grid">
-                    <div class="horizon-section">
-                        <h3>Roles (Areas)</h3>
+                <div class="horizons-layout">
+                    <div class="horizons-sidebar">
+                        <div class="section-header">
+                            <h3>Roles</h3>
+                        </div>
                         <div id="roles-list" class="item-grid"></div>
                     </div>
-                    <div class="horizon-section">
-                        <h3>Projects (Ambitions)</h3>
-                        <div id="ambitions-list" class="item-grid"></div>
-                    </div>
-                </div>
-
-                <div id="ambition-detail" class="detail-pane" style="display: none;">
-                    <div class="detail-header">
-                        <div style="display: flex; align-items: center; gap: 1rem;">
-                            <h3 id="detail-title">Project Details</h3>
-                            <button id="edit-ambition-btn" class="btn-icon" title="Edit Project"><i class="fas fa-pen-to-square"></i></button>
+                    
+                    <div class="horizons-content">
+                        <div class="section-header">
+                            <h3>Active Projects</h3>
                         </div>
-                        <button class="close-detail">&times;</button>
+                        <div id="ambitions-list" class="project-grid"></div>
+                        
+                        <div id="ambition-detail" class="detail-pane" style="display: none;">
+                            <div class="detail-header">
+                                <div style="display: flex; align-items: center; gap: 1rem;">
+                                    <h3 id="detail-title">Project Details</h3>
+                                    <button id="edit-ambition-btn" class="btn-icon" title="Edit Project"><i class="fas fa-pen-to-square"></i></button>
+                                </div>
+                                <button class="close-detail">&times;</button>
+                            </div>
+                            <div class="stats-row" id="detail-stats"></div>
+                            <h4>Next Actions</h4>
+                            <div id="detail-tasks" class="mini-task-list"></div>
+                        </div>
                     </div>
-                    <div class="stats-row" id="detail-stats"></div>
-                    <h4>Next Actions</h4>
-                    <div id="detail-tasks" class="mini-task-list"></div>
                 </div>
             </div>
 

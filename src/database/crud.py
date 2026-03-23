@@ -89,7 +89,7 @@ def get_ambitions_by_role(db: Session, h2_id: int):
 
 def get_ambitions_with_task_counts(db: Session, status: str = "active"):
     """
-    Returns a list of dicts with ambition data and its todo task count.
+    Returns a list of dicts with ambition data, its todo task count, and its done task count.
     """
     ambitions = db.query(models.Ambition).filter(models.Ambition.status == status).all()
     results = []
@@ -98,13 +98,18 @@ def get_ambitions_with_task_counts(db: Session, status: str = "active"):
             models.Task.ambition_id == a.id,
             models.Task.status == "todo"
         ).count()
+        done_count = db.query(models.Task).filter(
+            models.Task.ambition_id == a.id,
+            models.Task.status == "done"
+        ).count()
         results.append({
             "id": a.id,
             "outcome": a.outcome,
             "role_id": a.h2_id,
             "role_name": a.role.name if a.role else "",
             "status": a.status,
-            "todo_count": todo_count
+            "todo_count": todo_count,
+            "done_count": done_count
         })
     return results
 
