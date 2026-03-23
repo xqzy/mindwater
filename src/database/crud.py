@@ -116,8 +116,6 @@ def get_ambition_stats(db: Session, ambition_id: int):
     - finished_last_6_weeks: Count of tasks completed in the last 42 days.
     """
     now = datetime.now(UTC)
-    # Ensure now is naive if comparison targets are naive, but we want aware
-    # SQLite/SQLAlchemy might return naive. Let's handle both.
     two_weeks_ago = now - timedelta(days=14)
     six_weeks_ago = now - timedelta(days=42)
 
@@ -126,14 +124,13 @@ def get_ambition_stats(db: Session, ambition_id: int):
         models.Task.status == "done"
     ).all()
 
-    total_minutes = sum((t.actual_time if t.actual_time > 0 else t.estimated_time) for t in tasks)
+    total_minutes = sum(((t.actual_time or 0) if (t.actual_time or 0) > 0 else (t.estimated_time or 0)) for t in tasks)
     total_hours = total_minutes / 60.0
 
     count_2w = 0
     count_6w = 0
     for t in tasks:
         if t.completed_at:
-            # Handle potential naive/aware comparison
             cat = t.completed_at
             if cat.tzinfo is None:
                 cat = cat.replace(tzinfo=UTC)

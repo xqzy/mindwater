@@ -5,11 +5,11 @@ from .models import Base
 from .backup import rotate_backups
 from dotenv import load_dotenv
 
-# Ensure environment variables are loaded
-load_dotenv()
-
 # Get the absolute path to the project root
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Ensure environment variables are loaded from the root .env
+load_dotenv(os.path.join(BASE_DIR, ".env"))
 
 # Determine environment (default to production for safety)
 APP_ENV = os.environ.get("APP_ENV", "production")

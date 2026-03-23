@@ -88,5 +88,5 @@
 
 ---
 
-- [x] **Track: Email Follow-up Screen**
-*Link: [./tracks/email_followup_20260312/](./tracks/email_followup_20260312/)*
+- [x] **Track: Debug new GUI app**
+*Link: [./tracks/debug_new_gui_app_20260323/](./tracks/debug_new_gui_app_20260323/)*

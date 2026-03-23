@@ -1,3 +1,15 @@
+/* DEBUG: If you see a thin red line at the top, the CSS is loaded! */
+body::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 3px;
+    background: #FF3B30;
+    z-index: 9999;
+}
+
 :root {
     --primary: #32D74B;
     --primary-dark: #28a745;
@@ -34,6 +46,7 @@ body {
     padding: 1rem;
     flex-shrink: 0;
     z-index: 100;
+    overflow-y: auto;
 }
 
 .sidebar h1 {
@@ -42,18 +55,19 @@ body {
     margin-bottom: 1.5rem;
     color: var(--white);
     text-align: center;
+    flex-shrink: 0;
 }
 
 .nav-list {
     display: flex;
     flex-direction: column;
+    gap: 0.25rem;
 }
 
 .nav-item {
     display: flex;
     align-items: center;
     padding: 0.6rem 0.8rem;
-    margin-bottom: 0.25rem;
     border-radius: 0.5rem;
     cursor: pointer;
     transition: background 0.2s;
@@ -61,12 +75,15 @@ body {
     text-decoration: none;
     font-weight: 500;
     font-size: 0.9rem;
+    flex-shrink: 0;
+    white-space: nowrap;
 }
 
 .nav-item i {
     width: 20px;
     margin-right: 10px;
     text-align: center;
+    flex-shrink: 0;
 }
 
 .nav-item:hover {

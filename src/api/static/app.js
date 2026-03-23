@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentAmbitions = [];
     let currentTasks = [];
     let todoistEnabled = false;
+    let currentTab = 'followup';
 
     // --- Selectors ---
     const navItems = document.querySelectorAll('.nav-item');
@@ -31,6 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     const switchTab = (tabName) => {
+        currentTab = tabName;
         navItems.forEach(n => {
             n.classList.remove('active');
             if (n.getAttribute('data-tab') === tabName) n.classList.add('active');
@@ -255,7 +257,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (res) {
             clarifyModal.classList.remove('active');
-            if (emailId) fetchEmails(); else fetchFullInbox();
+            if (currentTab === 'review') {
+                loadReviewProjects();
+            } else if (emailId) {
+                fetchEmails(); 
+            } else {
+                fetchFullInbox();
+            }
         }
     };
 
@@ -325,12 +333,11 @@ document.addEventListener('DOMContentLoaded', () => {
         fetchTasks();
     };
 
-    window.openTaskEditModal = (id) => {
+    window.openTaskEditModal = async (id) => {
         const task = currentTasks.find(t => t.id === id);
         if (!task) return;
         
-        fetchRoles();
-        fetchAmbitions();
+        await Promise.all([fetchRoles(), fetchAmbitions()]);
         
         document.getElementById('edit-task-id').value = task.id;
         document.getElementById('edit-task-title').value = task.title;
@@ -338,11 +345,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('edit-task-time').value = task.estimated_time;
         document.getElementById('edit-task-contexts').value = task.context_tags ? task.context_tags.join(', ') : '';
         
-        // Delay setting selects until fetch finishes (simplified here)
-        setTimeout(() => {
-            document.getElementById('edit-task-role').value = task.role_id || "";
-            document.getElementById('edit-task-ambition').value = task.ambition_id || "";
-        }, 300);
+        document.getElementById('edit-task-role').value = task.role_id || "";
+        document.getElementById('edit-task-ambition').value = task.ambition_id || "";
         
         taskEditModal.classList.add('active');
     };
@@ -423,6 +427,11 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `).join('');
 
+        document.getElementById('edit-ambition-btn').onclick = (e) => {
+            e.stopPropagation();
+            openHorizonModal('ambition', ambition.id);
+        };
+
         // Selection highlight
         document.querySelectorAll('#ambitions-list .horizon-card').forEach(c => c.classList.remove('active'));
         // Find the card and add active class (simplified)
@@ -432,7 +441,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('ambition-detail').style.display = 'none';
     };
 
-    window.openHorizonModal = (type, id = null) => {
+    window.openHorizonModal = async (type, id = null) => {
         resetHorizonModal();
         document.getElementById('horizon-type').value = type;
         document.getElementById('horizon-id').value = id || "";
@@ -442,13 +451,14 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('role-extra-fields').style.display = type === 'role' ? 'block' : 'none';
         document.getElementById('ambition-extra-fields').style.display = type === 'ambition' ? 'block' : 'none';
         
+        await fetchRoles(); // ensure roles are loaded for the select
+
         if (id) {
             const item = type === 'role' ? currentRoles.find(r => r.id === id) : currentAmbitions.find(a => a.id === id);
             if (item) {
                 document.getElementById('horizon-name').value = type === 'role' ? item.name : item.outcome;
                 if (type === 'role') document.getElementById('role-description').value = item.description || "";
                 else {
-                    // Need to fetch full ambition details for status
                     document.getElementById('ambition-role-select').value = item.role_id || "";
                     document.getElementById('ambition-status-select').value = item.status || "active";
                 }
@@ -463,7 +473,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const resetHorizonModal = () => {
         horizonForm.reset();
-        fetchRoles(); // ensure ambition role select is populated
     };
 
     document.getElementById('add-role-btn').onclick = () => openHorizonModal('role');
@@ -494,7 +503,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (res) {
             horizonModal.classList.remove('active');
-            fetchHorizons();
+            if (currentTab === 'review') {
+                loadReviewAreas();
+            } else {
+                fetchHorizons();
+            }
         }
     };
 
