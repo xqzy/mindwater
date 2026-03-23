@@ -97,8 +97,8 @@ def delete_inbox_item(item_id: int, db: Session = Depends(get_db)):
 
 @app.post("/inbox/{item_id}/clarify")
 def clarify_inbox_item(item_id: int, request: ClarifyRequest, db: Session = Depends(get_db)):
-    # Verify inbox item exists (skip check if it's an email clarify)
-    if not request.email_id:
+    # Verify inbox item exists (skip check if it's an email clarify or a direct add with id=0)
+    if not request.email_id and item_id > 0:
         inbox_item = db.query(crud.models.Inbox).filter(crud.models.Inbox.id == item_id).first()
         if not inbox_item: raise HTTPException(status_code=404, detail="Inbox item not found")
 
@@ -113,7 +113,7 @@ def clarify_inbox_item(item_id: int, request: ClarifyRequest, db: Session = Depe
     # Cleanup
     if request.email_id:
         crud.create_dismissed_email(db, request.email_id)
-    else:
+    elif item_id > 0:
         crud.delete_inbox_item(db, item_id)
     
     return {"status": "success"}
