@@ -9,7 +9,6 @@ venv
 .env
 *.db
 *.db.*
-tests/
 .idx/
 conductor/
 README.md

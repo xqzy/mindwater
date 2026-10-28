@@ -86,6 +86,9 @@
                             <option value="Medium">Medium</option>
                             <option value="High">High</option>
                         </select>
+                        <label class="checkbox-filter" style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.875rem; color: var(--text-muted); cursor: pointer;">
+                            <input type="checkbox" id="filter-archived-tasks"> Show Archived
+                        </label>
                         <button id="clear-filters" class="btn-secondary">Clear</button>
                     </div>
                 </div>
@@ -125,15 +128,17 @@
                     
                     <div class="horizons-content">
                         <div class="section-header">
-                            <h3>Active Projects</h3>
+                            <h3 id="projects-section-title">Active Projects</h3>
+                            <button id="toggle-archived-projects-btn" class="btn-secondary" style="padding: 0.35rem 0.75rem; font-size: 0.75rem;">Show Archived</button>
                         </div>
                         <div id="ambitions-list" class="project-grid"></div>
                         
                         <div id="ambition-detail" class="detail-pane" style="display: none;">
                             <div class="detail-header">
-                                <div style="display: flex; align-items: center; gap: 1rem;">
-                                    <h3 id="detail-title">Project Details</h3>
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <h3 id="detail-title" style="margin-right: 0.5rem;">Project Details</h3>
                                     <button id="edit-ambition-btn" class="btn-icon" title="Edit Project"><i class="fas fa-pen-to-square"></i></button>
+                                    <button id="remove-ambition-btn" class="btn-icon btn-danger-icon" title="Remove or Archive Project"><i class="fas fa-trash-can"></i></button>
                                 </div>
                                 <button class="close-detail">&times;</button>
                             </div>
@@ -294,6 +299,7 @@
                                     <option value="active">Active</option>
                                     <option value="stalled">Stalled</option>
                                     <option value="done">Done</option>
+                                    <option value="archived">Archived</option>
                                 </select>
                             </div>
                         </div>
@@ -303,6 +309,30 @@
                             <button type="submit" class="btn-primary">Save</button>
                         </div>
                     </form>
+                </div>
+            </div>
+
+            <!-- Project Remove/Archive Validation Modal -->
+            <div id="project-remove-modal" class="modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>Remove or Archive Project</h3>
+                        <button class="close-modal">&times;</button>
+                    </div>
+                    <input type="hidden" id="remove-project-id">
+                    <p id="remove-project-message" style="margin-bottom: 0.75rem; line-height: 1.5; font-weight: 500;"></p>
+                    <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 1.5rem; line-height: 1.4;">
+                        Choose whether to archive or permanently remove this project. All related tasks will also be archived or permanently deleted.
+                    </p>
+                    <div class="modal-footer" style="gap: 0.5rem; justify-content: flex-end; flex-wrap: wrap;">
+                        <button type="button" class="btn-secondary" id="cancel-remove-project-btn">Cancel</button>
+                        <button type="button" class="btn-archive" id="confirm-archive-project-btn">
+                            <i class="fas fa-box-archive"></i> &nbsp;Archive
+                        </button>
+                        <button type="button" class="btn-danger" id="confirm-delete-project-btn">
+                            <i class="fas fa-trash-can"></i> &nbsp;Remove Permanently
+                        </button>
+                    </div>
                 </div>
             </div>
 

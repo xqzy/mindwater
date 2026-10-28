@@ -1,0 +1,8 @@
+{
+  "track_id": "project_remove_archive_20261028",
+  "type": "feature",
+  "status": "completed",
+  "created_at": "2026-10-28T23:23:45Z",
+  "updated_at": "2026-10-28T23:29:45Z",
+  "description": "Add a remove/archive button in the Horizons Project Details pane with confirmation modal, cascading removal or archiving to all related tasks, and option to view archived items."
+}

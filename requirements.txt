@@ -5,3 +5,4 @@ sqlalchemy
 textual
 firebase-admin
 python-dotenv
+requests

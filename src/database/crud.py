@@ -102,6 +102,10 @@ def get_ambitions_with_task_counts(db: Session, status: str = "active"):
             models.Task.ambition_id == a.id,
             models.Task.status == "done"
         ).count()
+        archived_count = db.query(models.Task).filter(
+            models.Task.ambition_id == a.id,
+            models.Task.status == "archived"
+        ).count()
         results.append({
             "id": a.id,
             "outcome": a.outcome,
@@ -109,7 +113,8 @@ def get_ambitions_with_task_counts(db: Session, status: str = "active"):
             "role_name": a.role.name if a.role else "",
             "status": a.status,
             "todo_count": todo_count,
-            "done_count": done_count
+            "done_count": done_count,
+            "archived_count": archived_count
         })
     return results
 
@@ -209,8 +214,10 @@ def filter_tasks(db: Session, context_tag: str = None, energy_level: str = None)
         query = query.filter(models.Task.energy_level == energy_level)
     return query.all()
 
-def get_filtered_tasks(db: Session, role_id: int = None, context_tag: str = None, energy_level: str = None):
+def get_filtered_tasks(db: Session, role_id: int = None, context_tag: str = None, energy_level: str = None, include_archived: bool = False):
     query = db.query(models.Task)
+    if not include_archived:
+        query = query.filter(models.Task.status != "archived")
     if role_id:
         query = query.filter(models.Task.role_id == role_id)
     if context_tag:
@@ -268,8 +275,21 @@ def delete_role(db: Session, role_id: int):
 def delete_ambition(db: Session, ambition_id: int):
     db_ambition = db.query(models.Ambition).filter(models.Ambition.id == ambition_id).first()
     if db_ambition:
+        db.query(models.Task).filter(models.Task.ambition_id == ambition_id).delete(synchronize_session=False)
         db.delete(db_ambition)
         db.commit()
+    return db_ambition
+
+def archive_ambition(db: Session, ambition_id: int):
+    db_ambition = db.query(models.Ambition).filter(models.Ambition.id == ambition_id).first()
+    if db_ambition:
+        db_ambition.status = "archived"
+        db.query(models.Task).filter(models.Task.ambition_id == ambition_id).update(
+            {models.Task.status: "archived"},
+            synchronize_session=False
+        )
+        db.commit()
+        db.refresh(db_ambition)
     return db_ambition
 
 # Review

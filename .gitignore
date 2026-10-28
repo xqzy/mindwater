@@ -6,3 +6,6 @@ __pycache__/
 .pytest_cache/
 .vscode/
 .idea/
+.DS_Store
+.env
+data/

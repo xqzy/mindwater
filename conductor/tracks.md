@@ -90,3 +90,8 @@
 
 - [x] **Track: Debug new GUI app**
 *Link: [./tracks/debug_new_gui_app_20260323/](./tracks/debug_new_gui_app_20260323/)*
+
+---
+
+- [x] **Track: Project Removal & Archiving with Cascading Tasks**
+*Link: [./tracks/project_remove_archive_20261028/](./tracks/project_remove_archive_20261028/)*

@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let todoistEnabled = false;
     let currentTab = 'followup';
     let selectedRoleId = null;
+    let showArchivedProjects = false;
 
     // --- Selectors ---
     const navItems = document.querySelectorAll('.nav-item');
@@ -17,6 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const clarifyModal = document.getElementById('clarify-modal');
     const horizonModal = document.getElementById('horizon-modal');
     const taskEditModal = document.getElementById('task-edit-modal');
+    const projectRemoveModal = document.getElementById('project-remove-modal');
     
     // Forms
     const clarifyForm = document.getElementById('clarify-form');
@@ -86,10 +88,13 @@ document.addEventListener('DOMContentLoaded', () => {
         updateSelectOptions('edit-task-role', currentRoles, 'id', 'name', 'No specific role');
     };
 
-    const fetchAmbitions = async () => {
-        currentAmbitions = await apiFetch('/ambitions');
-        updateSelectOptions('clarify-ambition', currentAmbitions, 'id', 'outcome', 'None (Standalone Task)');
-        updateSelectOptions('edit-task-ambition', currentAmbitions, 'id', 'outcome', 'None (Standalone)');
+    const fetchAmbitions = async (statusOverride = null) => {
+        const status = statusOverride || (showArchivedProjects ? 'archived' : 'active');
+        currentAmbitions = await apiFetch(`/ambitions?status=${status}`);
+        if (status === 'active' && currentAmbitions) {
+            updateSelectOptions('clarify-ambition', currentAmbitions, 'id', 'outcome', 'None (Standalone Task)');
+            updateSelectOptions('edit-task-ambition', currentAmbitions, 'id', 'outcome', 'None (Standalone)');
+        }
     };
 
     // --- Follow-up Screen ---
@@ -285,9 +290,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const fetchTasks = async () => {
         const role = document.getElementById('filter-role').value;
         const energy = document.getElementById('filter-energy').value;
+        const includeArchived = document.getElementById('filter-archived-tasks')?.checked || false;
         let url = `/tasks?`;
         if (role) url += `role_id=${role}&`;
         if (energy) url += `energy=${energy}&`;
+        if (includeArchived) url += `include_archived=true&`;
         
         currentTasks = await apiFetch(url);
         renderTasks();
@@ -302,7 +309,13 @@ document.addEventListener('DOMContentLoaded', () => {
         tbody.innerHTML = currentTasks.map(task => `
             <tr>
                 <td><div class="status-circle ${task.status === 'done' ? 'done' : ''}" onclick="toggleTaskStatus(${task.id}, '${task.status}')"></div></td>
-                <td><div style="font-weight: 500;">${task.title}</div><div class="item-meta">${task.ambition ? task.ambition.outcome : ''}</div></td>
+                <td>
+                    <div style="font-weight: 500; display: flex; align-items: center; gap: 0.5rem;">
+                        ${task.title}
+                        ${task.status === 'archived' ? '<span class="archived-badge">Archived</span>' : ''}
+                    </div>
+                    <div class="item-meta">${task.ambition ? task.ambition.outcome : ''}</div>
+                </td>
                 <td><span class="text-muted">${task.role ? task.role.name : '-'}</span></td>
                 <td>${task.context_tags ? task.context_tags.map(c => `<small class="text-muted">${c}</small>`).join(' ') : ''}</td>
                 <td>
@@ -328,9 +341,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('filter-role').onchange = fetchTasks;
     document.getElementById('filter-energy').onchange = fetchTasks;
+    const filterArchivedTasksEl = document.getElementById('filter-archived-tasks');
+    if (filterArchivedTasksEl) filterArchivedTasksEl.onchange = fetchTasks;
     document.getElementById('clear-filters').onclick = () => {
         document.getElementById('filter-role').value = "";
         document.getElementById('filter-energy').value = "";
+        if (filterArchivedTasksEl) filterArchivedTasksEl.checked = false;
         fetchTasks();
     };
 
@@ -404,31 +420,37 @@ document.addEventListener('DOMContentLoaded', () => {
         rolesList.innerHTML = rolesHtml;
 
         // Filter and Render Projects
+        const sectionTitle = document.getElementById('projects-section-title');
+        const toggleArchivedBtn = document.getElementById('toggle-archived-projects-btn');
+        if (sectionTitle) sectionTitle.innerText = showArchivedProjects ? 'Archived Projects' : 'Active Projects';
+        if (toggleArchivedBtn) toggleArchivedBtn.innerText = showArchivedProjects ? 'Show Active' : 'Show Archived';
+
         const filteredProjects = selectedRoleId 
             ? currentAmbitions.filter(a => a.role_id === selectedRoleId)
             : currentAmbitions;
 
         if (filteredProjects.length === 0) {
-            ambitionsList.innerHTML = '<div class="text-muted" style="grid-column: 1/-1; text-align: center; padding: 2rem;">No projects found for this role.</div>';
+            ambitionsList.innerHTML = `<div class="text-muted" style="grid-column: 1/-1; text-align: center; padding: 2rem;">No ${showArchivedProjects ? 'archived' : 'active'} projects found for this role.</div>`;
             return;
         }
 
         ambitionsList.innerHTML = filteredProjects.map(a => {
-            const total = a.todo_count + a.done_count;
+            const total = a.todo_count + a.done_count + (a.archived_count || 0);
             const percent = total > 0 ? Math.round((a.done_count / total) * 100) : 0;
             const isStalled = a.todo_count === 0 && a.status === 'active';
+            const isArchived = a.status === 'archived';
 
             return `
                 <div class="horizon-card project-card" onclick="showAmbitionDetail(${a.id})">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start;">
                         <div class="card-title">${a.outcome}</div>
-                        ${isStalled ? '<span class="stalled-badge">Stalled</span>' : ''}
+                        ${isArchived ? '<span class="archived-badge">Archived</span>' : (isStalled ? '<span class="stalled-badge">Stalled</span>' : '')}
                     </div>
                     
                     <div style="margin-top: auto;">
                         <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 0.25rem;">
                             <span class="text-muted" style="font-size: 0.75rem;">${a.role_name}</span>
-                            <span class="progress-text">${a.done_count}/${total} done</span>
+                            <span class="progress-text">${isArchived ? `${total} task${total === 1 ? '' : 's'} archived` : `${a.done_count}/${total} done`}</span>
                         </div>
                         <div class="progress-container">
                             <div class="progress-bar" style="width: ${percent}%"></div>
@@ -438,6 +460,15 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
         }).join('');
     };
+
+    const toggleArchivedProjectsBtn = document.getElementById('toggle-archived-projects-btn');
+    if (toggleArchivedProjectsBtn) {
+        toggleArchivedProjectsBtn.onclick = () => {
+            showArchivedProjects = !showArchivedProjects;
+            document.getElementById('ambition-detail').style.display = 'none';
+            fetchHorizons();
+        };
+    }
 
     window.selectRole = (roleId) => {
         selectedRoleId = roleId;
@@ -465,7 +496,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('detail-tasks').innerHTML = tasks.map(t => `
             <div class="mini-task">
                 <div class="status-circle ${t.status === 'done' ? 'done' : ''}"></div>
-                <div style="flex:1;">${t.title}</div>
+                <div style="flex:1;">${t.title} ${t.status === 'archived' ? '<span class="archived-badge">Archived</span>' : ''}</div>
                 <div class="text-muted">${t.energy_level}</div>
             </div>
         `).join('');
@@ -474,6 +505,14 @@ document.addEventListener('DOMContentLoaded', () => {
             e.stopPropagation();
             openHorizonModal('ambition', ambition.id);
         };
+
+        const removeAmbitionBtn = document.getElementById('remove-ambition-btn');
+        if (removeAmbitionBtn) {
+            removeAmbitionBtn.onclick = (e) => {
+                e.stopPropagation();
+                openProjectRemoveModal(ambition.id);
+            };
+        }
 
         // Selection highlight
         document.querySelectorAll('#ambitions-list .horizon-card').forEach(c => c.classList.remove('active'));
@@ -564,9 +603,57 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('horizon-delete-btn').onclick = async () => {
         const type = document.getElementById('horizon-type').value;
         const id = document.getElementById('horizon-id').value;
-        if (confirm(`Delete this ${type}?`)) {
-            await apiFetch(type === 'role' ? `/roles/${id}` : `/ambitions/${id}`, { method: 'DELETE' });
+        if (type === 'ambition') {
             horizonModal.classList.remove('active');
+            openProjectRemoveModal(parseInt(id));
+            return;
+        }
+        if (confirm(`Delete this ${type}?`)) {
+            await apiFetch(`/roles/${id}`, { method: 'DELETE' });
+            horizonModal.classList.remove('active');
+            fetchHorizons();
+        }
+    };
+
+    window.openProjectRemoveModal = (ambitionId) => {
+        const ambition = currentAmbitions.find(a => a.id === ambitionId);
+        if (!ambition) return;
+
+        const taskCount = (ambition.todo_count || 0) + (ambition.done_count || 0) + (ambition.archived_count || 0);
+        document.getElementById('remove-project-id').value = ambition.id;
+        document.getElementById('remove-project-message').innerText =
+            `Are you sure you want to remove "${ambition.outcome}" (${taskCount} related task${taskCount === 1 ? '' : 's'})?`;
+
+        const archiveBtn = document.getElementById('confirm-archive-project-btn');
+        if (archiveBtn) {
+            archiveBtn.style.display = ambition.status === 'archived' ? 'none' : 'inline-block';
+        }
+
+        projectRemoveModal.classList.add('active');
+    };
+
+    document.getElementById('cancel-remove-project-btn').onclick = () => {
+        projectRemoveModal.classList.remove('active');
+    };
+
+    document.getElementById('confirm-archive-project-btn').onclick = async () => {
+        const id = document.getElementById('remove-project-id').value;
+        if (!id) return;
+        const res = await apiFetch(`/ambitions/${id}/archive`, { method: 'POST' });
+        if (res) {
+            projectRemoveModal.classList.remove('active');
+            document.getElementById('ambition-detail').style.display = 'none';
+            fetchHorizons();
+        }
+    };
+
+    document.getElementById('confirm-delete-project-btn').onclick = async () => {
+        const id = document.getElementById('remove-project-id').value;
+        if (!id) return;
+        const res = await apiFetch(`/ambitions/${id}`, { method: 'DELETE' });
+        if (res) {
+            projectRemoveModal.classList.remove('active');
+            document.getElementById('ambition-detail').style.display = 'none';
             fetchHorizons();
         }
     };
@@ -695,6 +782,7 @@ document.addEventListener('DOMContentLoaded', () => {
             clarifyModal.classList.remove('active');
             horizonModal.classList.remove('active');
             taskEditModal.classList.remove('active');
+            if (projectRemoveModal) projectRemoveModal.classList.remove('active');
         };
     });
 
@@ -702,6 +790,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target == clarifyModal) clarifyModal.classList.remove('active');
         if (e.target == horizonModal) horizonModal.classList.remove('active');
         if (e.target == taskEditModal) taskEditModal.classList.remove('active');
+        if (projectRemoveModal && e.target == projectRemoveModal) projectRemoveModal.classList.remove('active');
     };
 
     // --- Initial Load ---

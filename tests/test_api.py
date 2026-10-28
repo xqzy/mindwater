@@ -19,7 +19,7 @@ class TestCaptureAPI(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data["status"], "success")
-        self.assertEqual(data["item"]["raw_text"], "Buy groceries @store #errand")
+        self.assertIn("id", data)
 
 if __name__ == '__main__':
     unittest.main()

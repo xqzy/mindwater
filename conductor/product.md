@@ -13,6 +13,7 @@
 ## Core Features
 - **Inbox / Capture Tool:** High-speed entry point for all open loops.
 - **Project Manager:** Define successful outcomes and link them to next actions.
+  - **Project Removal & Archiving:** Users can remove or archive a project from the Horizons Project Details pane after a confirmation step. Choosing to remove or archive a project cascades the action to all linked next actions (tasks). Archived projects and tasks are hidden from active views by default and can be viewed via an "Archived" toggle/filter.
 - **Contextual Task Lists:** Filterable views based on location, tools, and energy.
 - **Horizons View (Hierarchical Organization):**
   - **Horizon 5 (Purpose):** A dedicated "North Star" view for life mission and core values.

@@ -137,8 +137,8 @@ def dismiss_email(email_id: str, db: Session = Depends(get_db)):
 # --- Tasks ---
 
 @app.get("/tasks")
-def get_tasks(role_id: Optional[int] = None, context: Optional[str] = None, energy: Optional[str] = None, db: Session = Depends(get_db)):
-    tasks = crud.get_filtered_tasks(db, role_id=role_id, context_tag=context, energy_level=energy)
+def get_tasks(role_id: Optional[int] = None, context: Optional[str] = None, energy: Optional[str] = None, include_archived: bool = False, db: Session = Depends(get_db)):
+    tasks = crud.get_filtered_tasks(db, role_id=role_id, context_tag=context, energy_level=energy, include_archived=include_archived)
     return [{
         "id": t.id,
         "title": t.title,
@@ -190,9 +190,9 @@ def delete_role(role_id: int, db: Session = Depends(get_db)):
     return {"status": "success"}
 
 @app.get("/ambitions")
-def get_ambitions(db: Session = Depends(get_db)):
+def get_ambitions(status: str = "active", db: Session = Depends(get_db)):
     # Returning with task counts for the review/projects view
-    return crud.get_ambitions_with_task_counts(db)
+    return crud.get_ambitions_with_task_counts(db, status=status)
 
 @app.post("/ambitions")
 def create_ambition(ambition: AmbitionCreate, db: Session = Depends(get_db)):
@@ -202,9 +202,18 @@ def create_ambition(ambition: AmbitionCreate, db: Session = Depends(get_db)):
 def update_ambition(ambition_id: int, ambition: AmbitionCreate, db: Session = Depends(get_db)):
     return crud.update_ambition(db, ambition_id, **ambition.dict())
 
+@app.post("/ambitions/{ambition_id}/archive")
+def archive_ambition(ambition_id: int, db: Session = Depends(get_db)):
+    archived = crud.archive_ambition(db, ambition_id)
+    if not archived:
+        raise HTTPException(status_code=404, detail="Ambition not found")
+    return {"status": "success"}
+
 @app.delete("/ambitions/{ambition_id}")
 def delete_ambition(ambition_id: int, db: Session = Depends(get_db)):
-    crud.delete_ambition(db, ambition_id)
+    deleted = crud.delete_ambition(db, ambition_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Ambition not found")
     return {"status": "success"}
 
 @app.get("/ambitions/{ambition_id}/stats")
