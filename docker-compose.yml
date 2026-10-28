@@ -16,6 +16,8 @@ services:
       # BIND MOUNT: Map the 'data' folder on your NAS to the container.
       # This allows you to backup gtd.db using Synology Hyper Backup easily.
       - ./data:/app/data
+      - ./src:/app/src
+      - ./tests:/app/tests
     # Ensure the app starts automatically when the NAS reboots
     restart: always
     # Useful for debugging on Synology
