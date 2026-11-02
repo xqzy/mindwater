@@ -1,0 +1,8 @@
+{
+  "track_id": "todoist_bidirectional_sync_20261102",
+  "type": "feature",
+  "status": "completed",
+  "created_at": "2026-11-02T12:27:30Z",
+  "updated_at": "2026-11-02T12:39:30Z",
+  "description": "Implement bi-directional Todoist sync with sticky DB token storage, Role-to-Project and Ambition-to-Label mapping table, Inbox/Task routing, 2-way completion sync, duration sync, urgent badges, and Weekly Review batch push & stale task checks."
+}

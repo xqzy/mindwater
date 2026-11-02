@@ -4,10 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mindwater GTD</title>
-    <link rel="stylesheet" href="/static/style.css?v=3">
+    <link rel="stylesheet" href="/static/style.css?v=5">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
+    <div id="toast-container" class="toast-container"></div>
     <div class="sidebar">
         <h1>Mindwater</h1>
         <div class="nav-list">
@@ -28,6 +29,9 @@
             </a>
             <a href="#" class="nav-item" data-tab="review">
                 <i class="fas fa-calendar-check"></i> &nbsp; Review
+            </a>
+            <a href="#" class="nav-item" data-tab="todoist">
+                <i class="fas fa-arrows-rotate"></i> &nbsp; Todoist
             </a>
         </div>
     </div>
@@ -65,9 +69,14 @@
 
             <!-- Inbox Tab -->
             <div id="inbox" class="tab-content">
-                <div class="header-row">
-                    <h2>Inbox Management</h2>
-                    <p class="text-muted">Clarify these items into actions or projects.</p>
+                <div class="header-row" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                    <div>
+                        <h2>Inbox Management</h2>
+                        <p class="text-muted">Clarify these items into actions or projects.</p>
+                    </div>
+                    <button id="inbox-sync-todoist-btn" class="btn-secondary" title="Sync with Todoist">
+                        <i class="fas fa-arrows-rotate"></i> &nbsp;Sync Todoist
+                    </button>
                 </div>
                 <div id="inbox-items-full" class="inbox-list">
                     <!-- Inbox items will be injected here -->
@@ -77,7 +86,12 @@
             <!-- Tasks Tab -->
             <div id="tasks" class="tab-content">
                 <div class="header-row">
-                    <h2>Action List</h2>
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                        <h2>Action List</h2>
+                        <button id="tasks-sync-todoist-btn" class="btn-secondary" title="Sync with Todoist">
+                            <i class="fas fa-arrows-rotate"></i> &nbsp;Sync Todoist
+                        </button>
+                    </div>
                     <div class="filter-bar">
                         <select id="filter-role"><option value="">All Roles</option></select>
                         <select id="filter-energy">
@@ -173,8 +187,16 @@
                     </div>
 
                     <div id="step-2" class="wizard-pane">
-                        <h3>Review Projects</h3>
-                        <p>Ensure every project has at least one Next Action.</p>
+                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 0.75rem;">
+                            <div>
+                                <h3>Review Projects & Commit to This Week</h3>
+                                <p class="text-muted">Ensure every project has a Next Action. Select actions to push to Todoist for execution this week.</p>
+                            </div>
+                            <button id="review-batch-push-btn" class="btn-primary" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
+                                <i class="fas fa-paper-plane"></i> &nbsp;Push Selected to Todoist
+                            </button>
+                        </div>
+                        <div id="review-stale-todoist-box" style="display: none; margin-bottom: 1.25rem;"></div>
                         <div id="review-projects-list" class="inbox-list"></div>
                     </div>
 
@@ -194,6 +216,75 @@
                     <div class="wizard-nav">
                         <button id="prev-step" class="btn-secondary">Previous</button>
                         <button id="next-step" class="btn-primary">Next Step</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Todoist Integration & Mapping Tab -->
+            <div id="todoist" class="tab-content">
+                <div class="header-row" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                    <div>
+                        <h2>Todoist Connection & Mapping</h2>
+                        <p class="text-muted">Configure your sticky API token and map Mindwater Roles & Projects to Todoist Projects & Labels.</p>
+                    </div>
+                    <button id="todoist-sync-now-btn" class="btn-primary">
+                        <i class="fas fa-arrows-rotate"></i> &nbsp;Sync with Todoist Now
+                    </button>
+                </div>
+
+                <!-- Inline Action Feedback Banner -->
+                <div id="todoist-action-feedback" class="feedback-banner" style="display: none;"></div>
+
+                <!-- Sticky API Token Card -->
+                <div class="detail-pane" style="margin-top: 0; margin-bottom: 2rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem;">
+                        <div>
+                            <h3 style="margin-bottom: 0.25rem;">Todoist API Token (Sticky Storage)</h3>
+                            <p class="text-muted" style="font-size: 0.85rem;">Stored securely in your local database (`data/`), completely separate from code and GitHub.</p>
+                        </div>
+                        <span id="todoist-token-status" class="badge warning">Not Configured</span>
+                    </div>
+                    <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+                        <input type="password" id="todoist-token-input" placeholder="Paste your Todoist API token here..." style="flex: 1; min-width: 240px; padding: 0.65rem 0.85rem; border: 1px solid var(--border); border-radius: 0.5rem;">
+                        <button id="save-todoist-token-btn" class="btn-primary">Save Token</button>
+                    </div>
+                    <div id="todoist-last-sync-info" class="text-muted" style="font-size: 0.8rem; margin-top: 0.75rem;"></div>
+                </div>
+
+                <!-- Roles <-> Todoist Projects Mapping Table -->
+                <div class="detail-pane" style="margin-top: 0; margin-bottom: 2rem;">
+                    <h3 style="margin-bottom: 0.25rem;">Roles (H2) &harr; Todoist Projects</h3>
+                    <p class="text-muted" style="font-size: 0.85rem; margin-bottom: 1rem;">Tasks in a mapped Todoist Project are automatically assigned to that Role in Mindwater.</p>
+                    <div class="table-container" style="margin-top: 0.5rem;">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Mindwater Role (H2)</th>
+                                    <th>Mapped Todoist Project</th>
+                                    <th width="220">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="todoist-roles-mapping-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Mindwater Projects (H1) <-> Todoist Labels Mapping Table -->
+                <div class="detail-pane" style="margin-top: 0; margin-bottom: 2rem;">
+                    <h3 style="margin-bottom: 0.25rem;">Projects (H1) &harr; Todoist Labels</h3>
+                    <p class="text-muted" style="font-size: 0.85rem; margin-bottom: 1rem;">Tasks tagged with a mapped Todoist Label bypass the Inbox and link directly to that Mindwater Project.</p>
+                    <div class="table-container" style="margin-top: 0.5rem;">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Mindwater Project (H1)</th>
+                                    <th>Role</th>
+                                    <th>Mapped Todoist Label</th>
+                                    <th width="220">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="todoist-ambitions-mapping-body"></tbody>
+                        </table>
                     </div>
                 </div>
             </div>
@@ -386,6 +477,6 @@
         </div>
     </div>
 
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=5"></script>
 </body>
 </html>

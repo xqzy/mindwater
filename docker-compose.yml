@@ -6,8 +6,8 @@ services:
     ports:
       - "${APP_PORT:-8080}:8000"
     environment:
-      - APP_ENV=production
-      - DATABASE_PATH=/app/data/gtd.db
+      - APP_ENV=${APP_ENV:-production}
+      - DATABASE_PATH=${DATABASE_PATH:-/app/data/gtd.db}
       # These will be pulled from your .env file in the same folder
       - EMAIL_IMAP_HOST=${EMAIL_IMAP_HOST}
       - EMAIL_USER=${EMAIL_USER}

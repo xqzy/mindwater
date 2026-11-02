@@ -61,8 +61,15 @@ def get_roles_with_ambition_counts(db: Session):
     return results
 
 # Ambition (Horizon 1)
-def create_ambition(db: Session, outcome: str, h2_id: int = None, h4_id: int = None, h5_id: int = None):
-    db_ambition = models.Ambition(outcome=outcome, h2_id=h2_id, h4_id=h4_id, h5_id=h5_id)
+def create_ambition(db: Session, outcome: str, h2_id: int = None, h4_id: int = None, h5_id: int = None, todoist_label_id: str = None, todoist_label_name: str = None):
+    db_ambition = models.Ambition(
+        outcome=outcome,
+        h2_id=h2_id,
+        h4_id=h4_id,
+        h5_id=h5_id,
+        todoist_label_id=todoist_label_id,
+        todoist_label_name=todoist_label_name
+    )
     db.add(db_ambition)
     db.commit()
     db.refresh(db_ambition)
@@ -114,7 +121,9 @@ def get_ambitions_with_task_counts(db: Session, status: str = "active"):
             "status": a.status,
             "todo_count": todo_count,
             "done_count": done_count,
-            "archived_count": archived_count
+            "archived_count": archived_count,
+            "todoist_label_id": a.todoist_label_id,
+            "todoist_label_name": a.todoist_label_name
         })
     return results
 
@@ -158,7 +167,20 @@ def get_ambition_stats(db: Session, ambition_id: int):
     }
 
 # Task (Horizon 0)
-def create_task(db: Session, title: str, ambition_id: int = None, role_id: int = None, context_tags: list = None, energy_level: str = "Medium", planned_date: datetime = None, estimated_time: int = 0):
+def create_task(
+    db: Session,
+    title: str,
+    ambition_id: int = None,
+    role_id: int = None,
+    context_tags: list = None,
+    energy_level: str = "Medium",
+    planned_date: datetime = None,
+    estimated_time: int = 0,
+    todoist_task_id: str = None,
+    todoist_due_date: str = None,
+    todoist_priority: int = 1,
+    todoist_created_at: datetime = None
+):
     db_task = models.Task(
         title=title, 
         ambition_id=ambition_id, 
@@ -166,7 +188,11 @@ def create_task(db: Session, title: str, ambition_id: int = None, role_id: int =
         context_tags=context_tags, 
         energy_level=energy_level,
         planned_date=planned_date,
-        estimated_time=estimated_time
+        estimated_time=estimated_time,
+        todoist_task_id=todoist_task_id,
+        todoist_due_date=todoist_due_date,
+        todoist_priority=todoist_priority,
+        todoist_created_at=todoist_created_at
     )
     db.add(db_task)
     db.commit()
@@ -237,8 +263,23 @@ def get_unique_contexts(db: Session):
     return sorted(list(contexts))
 
 # Inbox (Capture)
-def create_inbox_item(db: Session, raw_text: str, source_tag: str = "manual"):
-    db_inbox = models.Inbox(raw_text=raw_text, source_tag=source_tag)
+def create_inbox_item(
+    db: Session,
+    raw_text: str,
+    source_tag: str = "manual",
+    todoist_task_id: str = None,
+    todoist_due_date: str = None,
+    todoist_priority: int = 1,
+    todoist_created_at: datetime = None
+):
+    db_inbox = models.Inbox(
+        raw_text=raw_text,
+        source_tag=source_tag,
+        todoist_task_id=todoist_task_id,
+        todoist_due_date=todoist_due_date,
+        todoist_priority=todoist_priority,
+        todoist_created_at=todoist_created_at
+    )
     db.add(db_inbox)
     db.commit()
     db.refresh(db_inbox)
@@ -313,5 +354,39 @@ def get_empty_roles(db: Session):
         if not active_ambitions and not active_tasks:
             empty_roles.append(role)
     return empty_roles
+
+# App Settings (Sticky Configuration)
+def get_setting(db: Session, key: str) -> str:
+    setting = db.query(models.AppSetting).filter(models.AppSetting.key == key).first()
+    return setting.value if setting else None
+
+def set_setting(db: Session, key: str, value: str):
+    setting = db.query(models.AppSetting).filter(models.AppSetting.key == key).first()
+    if setting:
+        setting.value = value
+        setting.updated_at = datetime.now(UTC)
+    else:
+        setting = models.AppSetting(key=key, value=value)
+        db.add(setting)
+    db.commit()
+    db.refresh(setting)
+    return setting
+
+# Stale Todoist Tasks Check (>14 days)
+def get_stale_todoist_tasks(db: Session, days: int = 14):
+    cutoff = datetime.now(UTC) - timedelta(days=days)
+    tasks = db.query(models.Task).filter(
+        models.Task.todoist_task_id.isnot(None),
+        models.Task.status == "todo"
+    ).all()
+    stale = []
+    for t in tasks:
+        created = t.todoist_created_at
+        if created:
+            if created.tzinfo is None:
+                created = created.replace(tzinfo=UTC)
+            if created <= cutoff:
+                stale.append(t)
+    return stale
 
 

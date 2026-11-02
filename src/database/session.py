@@ -1,5 +1,5 @@
 import os
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from .models import Base
 from .backup import rotate_backups
@@ -36,17 +36,53 @@ if APP_ENV == "production":
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+def ensure_schema_migrations(target_engine=None):
+    """
+    Safely creates any missing tables and adds new columns to existing SQLite tables
+    without modifying or losing existing data.
+    """
+    eng = target_engine or engine
+    Base.metadata.create_all(bind=eng)
+
+    migrations = {
+        "h2_role": [
+            ("todoist_project_id", "VARCHAR"),
+            ("todoist_project_name", "VARCHAR"),
+        ],
+        "ambition": [
+            ("todoist_label_id", "VARCHAR"),
+            ("todoist_label_name", "VARCHAR"),
+        ],
+        "task": [
+            ("todoist_task_id", "VARCHAR"),
+            ("todoist_due_date", "VARCHAR"),
+            ("todoist_priority", "INTEGER DEFAULT 1"),
+            ("todoist_created_at", "DATETIME"),
+        ],
+        "inbox": [
+            ("todoist_task_id", "VARCHAR"),
+            ("todoist_due_date", "VARCHAR"),
+            ("todoist_priority", "INTEGER DEFAULT 1"),
+            ("todoist_created_at", "DATETIME"),
+        ],
+    }
+
+    with eng.begin() as conn:
+        for table_name, columns in migrations.items():
+            res = conn.execute(text(f"PRAGMA table_info({table_name})")).fetchall()
+            existing_cols = {row[1] for row in res}
+            for col_name, col_type in columns:
+                if col_name not in existing_cols:
+                    conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type}"))
+
 def init_db():
     """
-    Initialize the database. 
-    In development/test, it's okay to create all.
-    In production, this should be handled by migrations.
+    Initialize the database and apply non-destructive schema migrations.
     """
     if APP_ENV == "production" and os.path.exists(DATABASE_PATH):
         rotate_backups(DATABASE_PATH)
 
-    if APP_ENV != "production" or not os.path.exists(DATABASE_PATH):
-        Base.metadata.create_all(bind=engine)
+    ensure_schema_migrations(engine)
 
 def get_db():
     db = SessionLocal()

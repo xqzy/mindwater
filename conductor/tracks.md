@@ -95,3 +95,8 @@
 
 - [x] **Track: Project Removal & Archiving with Cascading Tasks**
 *Link: [./tracks/project_remove_archive_20261028/](./tracks/project_remove_archive_20261028/)*
+
+---
+
+- [x] **Track: Bi-Directional Todoist Integration & Mapping**
+*Link: [./tracks/todoist_bidirectional_sync_20261102/](./tracks/todoist_bidirectional_sync_20261102/)*

@@ -30,6 +30,8 @@ class Horizon2(Base):
     name = Column(String, nullable=False)
     description = Column(String)
     h4_id = Column(Integer, ForeignKey('h4_vision.id'))
+    todoist_project_id = Column(String)
+    todoist_project_name = Column(String)
     vision = relationship("Horizon4", back_populates="roles")
     ambitions = relationship("Ambition", back_populates="role")
     tasks = relationship("Task", back_populates="role")
@@ -42,6 +44,8 @@ class Ambition(Base):
     h2_id = Column(Integer, ForeignKey('h2_role.id'))
     h4_id = Column(Integer, ForeignKey('h4_vision.id'))
     h5_id = Column(Integer, ForeignKey('h5_purpose.id'))
+    todoist_label_id = Column(String)
+    todoist_label_name = Column(String)
     role = relationship("Horizon2", back_populates="ambitions")
     vision = relationship("Horizon4", back_populates="ambitions")
     purpose = relationship("Horizon5", back_populates="ambitions")
@@ -60,6 +64,10 @@ class Task(Base):
     completed_at = Column(DateTime)
     ambition_id = Column(Integer, ForeignKey('ambition.id'))
     role_id = Column(Integer, ForeignKey('h2_role.id'))
+    todoist_task_id = Column(String)
+    todoist_due_date = Column(String)
+    todoist_priority = Column(Integer, default=1)
+    todoist_created_at = Column(DateTime)
     ambition = relationship("Ambition", back_populates="tasks")
     role = relationship("Horizon2", back_populates="tasks")
 
@@ -74,9 +82,19 @@ class Inbox(Base):
     raw_text = Column(String, nullable=False)
     source_tag = Column(String, default="manual")
     timestamp = Column(DateTime, default=lambda: datetime.now(UTC))
+    todoist_task_id = Column(String)
+    todoist_due_date = Column(String)
+    todoist_priority = Column(Integer, default=1)
+    todoist_created_at = Column(DateTime)
 
 class DismissedEmail(Base):
     __tablename__ = 'dismissed_email'
     id = Column(Integer, primary_key=True)
     email_id = Column(String, unique=True, nullable=False) # Message-ID or UID
     dismissed_at = Column(DateTime, default=lambda: datetime.now(UTC))
+
+class AppSetting(Base):
+    __tablename__ = 'app_setting'
+    key = Column(String, primary_key=True)
+    value = Column(String)
+    updated_at = Column(DateTime, default=lambda: datetime.now(UTC))

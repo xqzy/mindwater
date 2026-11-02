@@ -23,7 +23,12 @@
   - **Constraint:** If a role has no active projects, the system should flag it during the Weekly Review to ensure all life areas are moving forward.
 
 ## External Integrations (Contextual Capture)
-- **Todoist Sync:** Bi-directional sync where Todoist acts as the "Mobile Capture" and "Execution" tool, while this app acts as the "Brain" and "Planning" tool.
+- **Todoist Sync:** Bi-directional sync (Todoist Unified API v1) where Todoist acts as the "Mobile Capture" and "Execution" tool, while Mindwater acts as the "Brain" and "Planning" tool:
+  - **Sticky UI Token Storage:** Users enter their Todoist API Token once in the `Todoist` tab; it is stored in the local SQLite `app_setting` table (gitignored inside `data/`) so credentials never appear in GitHub.
+  - **Hierarchy Mapping Table:** Mindwater Roles (H2) map to Todoist Projects, and Mindwater Projects / Ambitions (H1) map to Todoist Labels (with 1-click remote creation).
+  - **Smart Routing & Clarify-in-Place:** Unmapped Todoist tasks enter the Mindwater Inbox (`source_tag="todoist"`) and update in place when clarified; mapped Todoist tasks route directly to Mindwater Tasks.
+  - **Two-Way Completion, Duration, & Lifecycle Sync:** Completing a task in either system completes it in the other (crediting `estimated_time` to Horizons stats), and renaming/archiving/deleting projects cascades to Todoist.
+  - **Weekly Review Execution Bridge:** Supports batch-pushing selected Next Actions to Todoist for the week and flags stale Todoist tasks older than 14 days.
 
 ## User Experience (UX)
 - **Frictionless:** Minimal taps/clicks to get information in.
