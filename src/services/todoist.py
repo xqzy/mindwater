@@ -104,11 +104,27 @@ def _parse_iso_datetime(val: Optional[str]) -> Optional[datetime]:
         return None
 
 
+def _is_ignored_todoist_project(proj: Dict[str, Any]) -> bool:
+    """
+    Returns True if a Todoist project is archived, deleted, or Todoist's built-in
+    onboarding 'Welcome' project.
+    """
+    if proj.get("is_archived") or proj.get("is_deleted"):
+        return True
+    name = (proj.get("name") or "").strip().lower()
+    if name.startswith("welcome"):
+        return True
+    return False
+
+
 # --- Projects API (Mapped to Mindwater Roles / H2) ---
 
-def fetch_todoist_projects(token: str) -> List[Dict[str, Any]]:
+def fetch_todoist_projects(token: str, include_ignored: bool = False) -> List[Dict[str, Any]]:
     with httpx.Client(timeout=15.0) as client:
-        return _fetch_paginated(client, f"{TODOIST_BASE_URL}/projects", _headers(token))
+        projs = _fetch_paginated(client, f"{TODOIST_BASE_URL}/projects", _headers(token))
+        if include_ignored:
+            return projs
+        return [p for p in projs if not _is_ignored_todoist_project(p)]
 
 
 def create_todoist_project(token: str, name: str) -> Dict[str, Any]:
@@ -344,6 +360,16 @@ def sync_with_todoist(db: Session) -> Dict[str, Any]:
     if not token:
         return {"status": "skipped", "reason": "Todoist token not configured"}
 
+    # Fetch projects so we can filter out archived/deleted projects and Todoist's 'Welcome 👋' onboarding project
+    ignored_project_ids = set()
+    try:
+        all_remote_projects = fetch_todoist_projects(token, include_ignored=True)
+        for p in all_remote_projects:
+            if _is_ignored_todoist_project(p) and p.get("id"):
+                ignored_project_ids.add(str(p.get("id")))
+    except Exception:
+        pass
+
     remote_tasks = fetch_todoist_tasks(token)
 
     # Build lookup dictionaries for mappings
@@ -367,9 +393,20 @@ def sync_with_todoist(db: Session) -> Dict[str, Any]:
 
     for rt in remote_tasks:
         tid = str(rt.get("id"))
-        active_remote_ids.add(tid)
-
+        rt_proj_id = str(rt.get("project_id")) if rt.get("project_id") else None
         title = rt.get("content", "").strip()
+
+        # Filter out completed, deleted, archived/Welcome project tasks, or Todoist onboarding links
+        if (
+            rt.get("checked")
+            or rt.get("is_completed")
+            or rt.get("is_deleted")
+            or (rt_proj_id and rt_proj_id in ignored_project_ids)
+            or "utm_campaign=welcome_project" in title
+        ):
+            continue
+
+        active_remote_ids.add(tid)
         due_obj = rt.get("due") or {}
         due_date_str = due_obj.get("date")
         priority = int(rt.get("priority", 1))

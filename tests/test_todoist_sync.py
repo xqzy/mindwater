@@ -235,6 +235,67 @@ class TestTodoistBidirectionalSync(unittest.TestCase):
         self.assertEqual(items[0]["name"], "Inbox")
         self.assertEqual(items[1]["name"], "Work")
 
+    @patch("src.services.todoist.fetch_todoist_projects")
+    @patch("src.services.todoist.fetch_todoist_tasks")
+    def test_sync_filters_welcome_archived_and_completed_tasks_and_cleans_inbox(self, mock_fetch_tasks, mock_fetch_projects):
+        self.client.post("/todoist/settings", json={"token": "test_token_1234"})
+
+        # Seed a previously imported 'Welcome' onboarding task in Inbox that should be cleaned up on sync
+        crud.create_inbox_item(
+            self.db,
+            raw_text="You can add subtasks here! ✅",
+            source_tag="todoist",
+            todoist_task_id="td_welcome_subtask"
+        )
+
+        mock_fetch_projects.return_value = [
+            {"id": "proj_inbox", "name": "Inbox", "is_archived": False, "is_deleted": False},
+            {"id": "proj_welcome", "name": "Welcome 👋", "is_archived": False, "is_deleted": False},
+            {"id": "proj_archived", "name": "Old Project", "is_archived": True, "is_deleted": False},
+        ]
+
+        mock_fetch_tasks.return_value = [
+            {
+                "id": "td_welcome_subtask",
+                "content": "You can add subtasks here! ✅",
+                "project_id": "proj_welcome",
+                "checked": False,
+                "is_deleted": False
+            },
+            {
+                "id": "td_archived_proj_task",
+                "content": "Task in archived project",
+                "project_id": "proj_archived",
+                "checked": False,
+                "is_deleted": False
+            },
+            {
+                "id": "td_checked_task",
+                "content": "Already checked task",
+                "project_id": "proj_inbox",
+                "checked": True,
+                "is_deleted": False
+            },
+            {
+                "id": "td_valid_task",
+                "content": "Real active inbox task",
+                "project_id": "proj_inbox",
+                "checked": False,
+                "is_deleted": False
+            }
+        ]
+
+        sync_resp = self.client.post("/todoist/sync")
+        self.assertEqual(sync_resp.status_code, 200)
+        summary = sync_resp.json()
+        self.assertEqual(summary["imported_inbox"], 1)
+
+        # Verify only 'Real active inbox task' is in Inbox, and 'You can add subtasks here! ✅' was removed
+        self.db.expire_all()
+        inbox_items = crud.get_inbox_items(self.db)
+        self.assertEqual(len(inbox_items), 1)
+        self.assertEqual(inbox_items[0].raw_text, "Real active inbox task")
+
 
 if __name__ == "__main__":
     unittest.main()

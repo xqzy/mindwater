@@ -22,6 +22,8 @@ Connect Mindwater (the weekly/monthly GTD planning system) with Todoist (the urg
 
 ### 3. Incoming Todoist Task Routing & Clarify-in-Place (Core + Idea #6)
 - **Sync Trigger**: Runs automatically when opening the Inbox, Tasks, or Todoist tabs, and whenever the user clicks the **"Sync with Todoist"** button.
+- **Filtering Out Welcome, Archived & Deleted Items**:
+  - Automatically filter out Todoist's built-in `Welcome 👋` onboarding project (`utm_campaign=welcome_project` / project name starting with `welcome`), archived or deleted projects (`is_archived=True` or `is_deleted=True`), and checked/deleted tasks (`checked=True`, `is_completed=True`, `is_deleted=True`). Any previously imported items from filtered projects are automatically cleaned from the Mindwater Inbox on sync.
 - **Mapped Tasks $\rightarrow$ Mindwater Tasks**:
   - Active Todoist tasks that have a mapped Todoist Label (or mapped Todoist Project) are automatically created or updated in Mindwater's `Task` table under the mapped Mindwater Project (`ambition_id`) and Role (`role_id`).
 - **Unmapped Tasks $\rightarrow$ Mindwater Inbox**:
