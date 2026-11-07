@@ -12,13 +12,16 @@
 
 ## Core Features
 - **Inbox / Capture Tool:** High-speed entry point for all open loops.
+  - **Role-First Clarifying & Inline Creation:** When clarifying Inbox items, users first select the **Role** (`1. Role`), which dynamically filters the **Project / Ambition** (`2. Project (Ambition)`) dropdown to only show active ambitions belonging to that Role. Users can also add a new Role or Ambition directly from the Inbox header or inline inside the Clarify modal.
 - **Project Manager:** Define successful outcomes and link them to next actions.
+  - **Project Prioritization & Drag-and-Drop Reordering:** Users can prioritize active projects either by assigning/editing a priority number (`#1`, `#2`, ...) directly on the project card or in the Add/Edit Project modal, or by dragging and dropping project cards into different spots in the Horizons tab (`POST /ambitions/reorder`). Changing a project's priority automatically shifts and normalizes all active projects into a contiguous `1..N` sequence.
   - **Project Removal & Archiving:** Users can remove or archive a project from the Horizons Project Details pane after a confirmation step. Choosing to remove or archive a project cascades the action to all linked next actions (tasks). Archived projects and tasks are hidden from active views by default and can be viewed via an "Archived" toggle/filter.
 - **Contextual Task Lists:** Filterable views based on location, tools, and energy.
 - **Horizons View (Hierarchical Organization):**
   - **Horizon 5 (Purpose):** A dedicated "North Star" view for life mission and core values.
   - **Horizon 4 (Vision):** 3-5 year goal tracking.
   - **Horizon 2 (Areas of Focus / Roles):** A system to categorize every project under a specific "Role" (e.g., Parent, Developer, Athlete).
+    - **Role Color Coding & 15 Cartoon/Disney Banner Themes:** Each Role can be styled with a custom color and one of 15 full-bleed, semi-transparent cartoon/Disney movie banner illustrations (with matching color palettes). All Projects under a Role automatically inherit and follow their Role's color coding (borders, surface tint, priority badge, Role pill, and progress bar).
 - **Review Module:** Dedicated interfaces for Daily and Weekly reviews.
   - **Constraint:** If a role has no active projects, the system should flag it during the Weekly Review to ensure all life areas are moving forward.
 

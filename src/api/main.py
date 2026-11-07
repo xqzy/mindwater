@@ -65,11 +65,17 @@ class TaskUpdate(BaseModel):
 class RoleCreate(BaseModel):
     name: str
     description: Optional[str] = None
+    color: Optional[str] = "#0284c7"
+    theme_key: Optional[str] = "frozen"
 
 class AmbitionCreate(BaseModel):
-    outcome: str
+    outcome: Optional[str] = None
     h2_id: Optional[int] = None
     status: Optional[str] = "active"
+    priority: Optional[int] = None
+
+class AmbitionReorderRequest(BaseModel):
+    ordered_ids: List[int]
 
 class TodoistSettingsRequest(BaseModel):
     token: str
@@ -429,17 +435,25 @@ def get_roles(db: Session = Depends(get_db)):
         "id": r.id,
         "name": r.name,
         "description": r.description,
+        "color": r.color or "#0284c7",
+        "theme_key": r.theme_key or "frozen",
         "todoist_project_id": r.todoist_project_id,
         "todoist_project_name": r.todoist_project_name
     } for r in roles]
 
 @app.post("/roles")
 def create_role(role: RoleCreate, db: Session = Depends(get_db)):
-    return crud.create_h2(db, name=role.name, description=role.description)
+    return crud.create_h2(
+        db,
+        name=role.name,
+        description=role.description,
+        color=role.color,
+        theme_key=role.theme_key
+    )
 
 @app.put("/roles/{role_id}")
 def update_role(role_id: int, role: RoleCreate, db: Session = Depends(get_db)):
-    updated = crud.update_role(db, role_id, **role.dict())
+    updated = crud.update_role(db, role_id, **role.dict(exclude_unset=True))
     if updated and updated.todoist_project_id:
         token = get_todoist_token(db)
         if token:
@@ -463,12 +477,24 @@ def get_ambitions(status: str = "active", db: Session = Depends(get_db)):
 
 @app.post("/ambitions")
 def create_ambition(ambition: AmbitionCreate, db: Session = Depends(get_db)):
-    return crud.create_ambition(db, outcome=ambition.outcome, h2_id=ambition.h2_id)
+    if not ambition.outcome:
+        raise HTTPException(status_code=400, detail="Outcome is required")
+    return crud.create_ambition(
+        db,
+        outcome=ambition.outcome,
+        h2_id=ambition.h2_id,
+        priority=ambition.priority
+    )
+
+@app.post("/ambitions/reorder")
+def reorder_ambitions_endpoint(req: AmbitionReorderRequest, db: Session = Depends(get_db)):
+    updated_list = crud.reorder_ambitions(db, req.ordered_ids)
+    return {"status": "success", "ambitions": updated_list}
 
 @app.put("/ambitions/{ambition_id}")
 def update_ambition(ambition_id: int, ambition: AmbitionCreate, db: Session = Depends(get_db)):
-    updated = crud.update_ambition(db, ambition_id, **ambition.dict())
-    if updated and updated.todoist_label_id:
+    updated = crud.update_ambition(db, ambition_id, **ambition.dict(exclude_unset=True))
+    if updated and updated.todoist_label_id and ambition.outcome is not None:
         token = get_todoist_token(db)
         if token:
             try:

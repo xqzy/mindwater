@@ -23,8 +23,21 @@ def create_h4(db: Session, name: str, description: str = None, target_date: str 
     return db_h4
 
 # Horizon 2 (Role)
-def create_h2(db: Session, name: str, description: str = None, h4_id: int = None):
-    db_h2 = models.Horizon2(name=name, description=description, h4_id=h4_id)
+def create_h2(
+    db: Session,
+    name: str,
+    description: str = None,
+    h4_id: int = None,
+    color: str = "#0284c7",
+    theme_key: str = "frozen"
+):
+    db_h2 = models.Horizon2(
+        name=name,
+        description=description,
+        h4_id=h4_id,
+        color=color or "#0284c7",
+        theme_key=theme_key or "frozen"
+    )
     db.add(db_h2)
     db.commit()
     db.refresh(db_h2)
@@ -61,17 +74,58 @@ def get_roles_with_ambition_counts(db: Session):
     return results
 
 # Ambition (Horizon 1)
-def create_ambition(db: Session, outcome: str, h2_id: int = None, h4_id: int = None, h5_id: int = None, todoist_label_id: str = None, todoist_label_name: str = None):
+def _normalize_active_ambition_priorities(db: Session):
+    """
+    Ensures all non-archived ambitions have clean sequential 1..N priorities
+    without gaps or duplicates.
+    """
+    active_ambs = (
+        db.query(models.Ambition)
+        .filter(models.Ambition.status != "archived")
+        .order_by(models.Ambition.priority.asc(), models.Ambition.id.asc())
+        .all()
+    )
+    for idx, amb in enumerate(active_ambs, start=1):
+        amb.priority = idx
+    db.commit()
+
+
+def create_ambition(
+    db: Session,
+    outcome: str,
+    h2_id: int = None,
+    h4_id: int = None,
+    h5_id: int = None,
+    todoist_label_id: str = None,
+    todoist_label_name: str = None,
+    priority: int = None
+):
+    active_count = db.query(models.Ambition).filter(models.Ambition.status != "archived").count()
+    target_priority = active_count + 1
+    if priority is not None and int(priority) >= 1:
+        target_priority = min(max(1, int(priority)), active_count + 1)
+        # Shift existing ambitions at or below target_priority down by 1
+        existing = (
+            db.query(models.Ambition)
+            .filter(models.Ambition.status != "archived")
+            .order_by(models.Ambition.priority.asc(), models.Ambition.id.asc())
+            .all()
+        )
+        for idx, amb in enumerate(existing, start=1):
+            amb.priority = idx + 1 if idx >= target_priority else idx
+
     db_ambition = models.Ambition(
         outcome=outcome,
         h2_id=h2_id,
         h4_id=h4_id,
         h5_id=h5_id,
         todoist_label_id=todoist_label_id,
-        todoist_label_name=todoist_label_name
+        todoist_label_name=todoist_label_name,
+        priority=target_priority
     )
     db.add(db_ambition)
     db.commit()
+    _normalize_active_ambition_priorities(db)
     db.refresh(db_ambition)
     return db_ambition
 
@@ -79,26 +133,89 @@ def get_ambition(db: Session, ambition_id: int):
     return db.query(models.Ambition).filter(models.Ambition.id == ambition_id).first()
 
 def get_all_ambitions(db: Session):
-    return db.query(models.Ambition).all()
+    return db.query(models.Ambition).order_by(models.Ambition.priority.asc(), models.Ambition.id.asc()).all()
 
 def update_ambition(db: Session, ambition_id: int, **kwargs):
     db_ambition = db.query(models.Ambition).filter(models.Ambition.id == ambition_id).first()
-    if db_ambition:
-        for key, value in kwargs.items():
-            if hasattr(db_ambition, key):
-                setattr(db_ambition, key, value)
+    if not db_ambition:
+        return None
+
+    requested_priority = kwargs.pop("priority", None)
+    for key, value in kwargs.items():
+        if hasattr(db_ambition, key) and value is not None:
+            setattr(db_ambition, key, value)
+        elif key == "h2_id":
+            db_ambition.h2_id = value
+
+    db.commit()
+
+    if requested_priority is not None and db_ambition.status != "archived":
+        others = (
+            db.query(models.Ambition)
+            .filter(models.Ambition.status != "archived", models.Ambition.id != ambition_id)
+            .order_by(models.Ambition.priority.asc(), models.Ambition.id.asc())
+            .all()
+        )
+        insert_idx = max(0, min(int(requested_priority) - 1, len(others)))
+        reordered = others[:insert_idx] + [db_ambition] + others[insert_idx:]
+        for idx, amb in enumerate(reordered, start=1):
+            amb.priority = idx
         db.commit()
-        db.refresh(db_ambition)
+    else:
+        _normalize_active_ambition_priorities(db)
+
+    db.refresh(db_ambition)
     return db_ambition
 
+
+def reorder_ambitions(db: Session, ordered_ids: list):
+    """
+    Reorders the specified Ambition IDs into the sequence given by ordered_ids.
+    Works both when all active projects are visible and when a Role filter subset is visible.
+    """
+    if not ordered_ids:
+        return []
+
+    _normalize_active_ambition_priorities(db)
+    all_active = (
+        db.query(models.Ambition)
+        .filter(models.Ambition.status != "archived")
+        .order_by(models.Ambition.priority.asc(), models.Ambition.id.asc())
+        .all()
+    )
+    by_id = {a.id: a for a in all_active}
+    valid_ordered = [by_id[aid] for aid in ordered_ids if aid in by_id]
+    if not valid_ordered:
+        return all_active
+
+    # Collect the priority slots currently occupied by this subset (in ascending order)
+    occupied_slots = sorted(a.priority for a in valid_ordered)
+    for slot, amb in zip(occupied_slots, valid_ordered):
+        amb.priority = slot
+
+    db.commit()
+    _normalize_active_ambition_priorities(db)
+    return get_ambitions_with_task_counts(db, status="active")
+
 def get_ambitions_by_role(db: Session, h2_id: int):
-    return db.query(models.Ambition).filter(models.Ambition.h2_id == h2_id).all()
+    return (
+        db.query(models.Ambition)
+        .filter(models.Ambition.h2_id == h2_id)
+        .order_by(models.Ambition.priority.asc(), models.Ambition.id.asc())
+        .all()
+    )
 
 def get_ambitions_with_task_counts(db: Session, status: str = "active"):
     """
-    Returns a list of dicts with ambition data, its todo task count, and its done task count.
+    Returns a list of dicts with ambition data, its todo task count, and its done task count,
+    ordered by priority ascending.
     """
-    ambitions = db.query(models.Ambition).filter(models.Ambition.status == status).all()
+    ambitions = (
+        db.query(models.Ambition)
+        .filter(models.Ambition.status == status)
+        .order_by(models.Ambition.priority.asc(), models.Ambition.id.asc())
+        .all()
+    )
     results = []
     for a in ambitions:
         todo_count = db.query(models.Task).filter(
@@ -116,8 +233,11 @@ def get_ambitions_with_task_counts(db: Session, status: str = "active"):
         results.append({
             "id": a.id,
             "outcome": a.outcome,
+            "priority": a.priority,
             "role_id": a.h2_id,
             "role_name": a.role.name if a.role else "",
+            "role_color": a.role.color if a.role and a.role.color else "#64748b",
+            "role_theme_key": a.role.theme_key if a.role else None,
             "status": a.status,
             "todo_count": todo_count,
             "done_count": done_count,
@@ -319,6 +439,7 @@ def delete_ambition(db: Session, ambition_id: int):
         db.query(models.Task).filter(models.Task.ambition_id == ambition_id).delete(synchronize_session=False)
         db.delete(db_ambition)
         db.commit()
+        _normalize_active_ambition_priorities(db)
     return db_ambition
 
 def archive_ambition(db: Session, ambition_id: int):
@@ -330,6 +451,7 @@ def archive_ambition(db: Session, ambition_id: int):
             synchronize_session=False
         )
         db.commit()
+        _normalize_active_ambition_priorities(db)
         db.refresh(db_ambition)
     return db_ambition
 

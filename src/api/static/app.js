@@ -121,8 +121,62 @@ document.addEventListener('DOMContentLoaded', () => {
     const updateSelectOptions = (selectId, items, valueField, textField, prompt = "Select...") => {
         const select = document.getElementById(selectId);
         if (!select) return;
+        const prevVal = select.value;
         select.innerHTML = `<option value="">${prompt}</option>` + 
             items.map(item => `<option value="${item[valueField]}">${item[textField]}</option>`).join('');
+        if (prevVal && items.some(item => String(item[valueField]) === String(prevVal))) {
+            select.value = prevVal;
+        }
+    };
+
+    const filterClarifyAmbitionsByRole = (roleId, selectedAmbitionId = null) => {
+        const select = document.getElementById('clarify-ambition');
+        if (!select) return;
+        const keepAmbitionId = selectedAmbitionId !== null ? selectedAmbitionId : select.value;
+        const parsedRoleId = parseInt(roleId);
+        const activeAmbitions = (currentAmbitions || []).filter(a => a.status === 'active');
+
+        if (!isNaN(parsedRoleId)) {
+            const roleAmbitions = activeAmbitions.filter(a => a.role_id === parsedRoleId);
+            const promptText = roleAmbitions.length > 0
+                ? 'None (Standalone Task)'
+                : 'No projects for this role yet (Standalone Task)';
+            select.innerHTML = `<option value="">${promptText}</option>` +
+                roleAmbitions.map(a => `<option value="${a.id}">${a.outcome}</option>`).join('');
+            if (keepAmbitionId && roleAmbitions.some(a => String(a.id) === String(keepAmbitionId))) {
+                select.value = String(keepAmbitionId);
+            } else {
+                select.value = "";
+            }
+        } else {
+            const unassignedAmbitions = activeAmbitions.filter(a => !a.role_id);
+            select.innerHTML = `<option value="">None (Select a Role above to see its projects)</option>` +
+                unassignedAmbitions.map(a => `<option value="${a.id}">${a.outcome}</option>`).join('');
+            if (keepAmbitionId && unassignedAmbitions.some(a => String(a.id) === String(keepAmbitionId))) {
+                select.value = String(keepAmbitionId);
+            } else {
+                select.value = "";
+            }
+        }
+    };
+
+    const filterEditTaskAmbitionsByRole = (roleId, selectedAmbitionId = null) => {
+        const select = document.getElementById('edit-task-ambition');
+        if (!select) return;
+        const keepAmbitionId = selectedAmbitionId !== null ? selectedAmbitionId : select.value;
+        const parsedRoleId = parseInt(roleId);
+        const activeAmbitions = (currentAmbitions || []).filter(a => a.status === 'active');
+        const matching = !isNaN(parsedRoleId)
+            ? activeAmbitions.filter(a => a.role_id === parsedRoleId)
+            : activeAmbitions;
+
+        select.innerHTML = `<option value="">None (Standalone)</option>` +
+            matching.map(a => `<option value="${a.id}">${a.outcome}</option>`).join('');
+        if (keepAmbitionId && matching.some(a => String(a.id) === String(keepAmbitionId))) {
+            select.value = String(keepAmbitionId);
+        } else {
+            select.value = "";
+        }
     };
 
     // Helper for Idea #8 (Urgent / Overdue in Todoist badge) & Idea #7 (Deep-Link Sync Badge)
@@ -211,8 +265,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const status = statusOverride || (showArchivedProjects ? 'archived' : 'active');
         currentAmbitions = await apiFetch(`/ambitions?status=${status}`);
         if (status === 'active' && currentAmbitions) {
-            updateSelectOptions('clarify-ambition', currentAmbitions, 'id', 'outcome', 'None (Standalone Task)');
-            updateSelectOptions('edit-task-ambition', currentAmbitions, 'id', 'outcome', 'None (Standalone)');
+            const clarifyRoleVal = document.getElementById('clarify-role')?.value || "";
+            filterClarifyAmbitionsByRole(clarifyRoleVal);
+            const editRoleVal = document.getElementById('edit-task-role')?.value || "";
+            filterEditTaskAmbitionsByRole(editRoleVal);
         }
     };
 
@@ -340,7 +396,7 @@ document.addEventListener('DOMContentLoaded', () => {
         clarifyModal.classList.add('active');
     };
 
-    const resetClarifyModal = () => {
+    const resetClarifyModal = async () => {
         clarifyForm.reset();
         document.getElementById('clarify-item-id').value = "";
         document.getElementById('clarify-email-id').value = "";
@@ -348,9 +404,45 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('task-fields').style.display = 'block';
         document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
         document.querySelector('.toggle-btn[data-type="task"]').classList.add('active');
-        fetchRoles();
-        fetchAmbitions('active');
+        await Promise.all([fetchRoles(), fetchAmbitions('active')]);
+        document.getElementById('clarify-role').value = "";
+        filterClarifyAmbitionsByRole("", "");
     };
+
+    const clarifyRoleSelect = document.getElementById('clarify-role');
+    if (clarifyRoleSelect) {
+        clarifyRoleSelect.addEventListener('change', (e) => {
+            filterClarifyAmbitionsByRole(e.target.value, "");
+        });
+    }
+
+    const editTaskRoleSelect = document.getElementById('edit-task-role');
+    if (editTaskRoleSelect) {
+        editTaskRoleSelect.addEventListener('change', (e) => {
+            filterEditTaskAmbitionsByRole(e.target.value, "");
+        });
+    }
+
+    const inboxAddRoleBtn = document.getElementById('inbox-add-role-btn');
+    if (inboxAddRoleBtn) inboxAddRoleBtn.onclick = () => openHorizonModal('role');
+
+    const inboxAddAmbitionBtn = document.getElementById('inbox-add-ambition-btn');
+    if (inboxAddAmbitionBtn) inboxAddAmbitionBtn.onclick = () => openHorizonModal('ambition');
+
+    const clarifyAddRoleBtn = document.getElementById('clarify-add-role-btn');
+    if (clarifyAddRoleBtn) clarifyAddRoleBtn.onclick = () => openHorizonModal('role');
+
+    const clarifyAddAmbitionBtn = document.getElementById('clarify-add-ambition-btn');
+    if (clarifyAddAmbitionBtn) {
+        clarifyAddAmbitionBtn.onclick = async () => {
+            const chosenRoleId = document.getElementById('clarify-role')?.value || "";
+            await openHorizonModal('ambition');
+            if (chosenRoleId) {
+                const ambRoleSelect = document.getElementById('ambition-role-select');
+                if (ambRoleSelect) ambRoleSelect.value = chosenRoleId;
+            }
+        };
+    }
 
     document.querySelectorAll('.toggle-btn').forEach(btn => {
         btn.onclick = () => {
@@ -494,7 +586,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('edit-task-contexts').value = task.context_tags ? task.context_tags.join(', ') : '';
         
         document.getElementById('edit-task-role').value = task.role_id || "";
-        document.getElementById('edit-task-ambition').value = task.ambition_id || "";
+        filterEditTaskAmbitionsByRole(task.role_id || "", task.ambition_id || "");
         
         taskEditModal.classList.add('active');
     };
@@ -538,19 +630,39 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `;
         
-        rolesHtml += currentRoles.map(role => `
-            <div class="horizon-card role-card ${selectedRoleId === role.id ? 'active' : ''}" onclick="selectRole(${role.id})">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <div style="font-weight: 600;">${role.name}</div>
-                        ${role.todoist_project_name ? `<div class="text-muted" style="font-size:0.7rem;"><i class="fas fa-link"></i> ${role.todoist_project_name}</div>` : ''}
+        rolesHtml += currentRoles.map(role => {
+            const themeObj = window.getRoleTheme ? window.getRoleTheme(role.theme_key) : null;
+            const roleColor = role.color || (themeObj ? themeObj.color : '#0284c7');
+            const bgDataUri = window.getRoleThemeDataUri ? window.getRoleThemeDataUri(role.theme_key || 'frozen') : '';
+            const isSelected = selectedRoleId === role.id;
+            const cardStyle = `border-left: 5px solid ${roleColor}; border-color: ${isSelected ? roleColor : window.hexToRgba(roleColor, 0.35)}; ${isSelected ? `box-shadow: 0 0 0 2px ${roleColor};` : ''}`;
+
+            return `
+                <div class="horizon-card role-card themed-role-card ${isSelected ? 'active' : ''}" style="${cardStyle}" onclick="selectRole(${role.id})">
+                    <div class="role-card-bg" style="background-image: url('${bgDataUri}');"></div>
+                    <div class="role-card-veil"></div>
+                    <div class="role-card-content">
+                        ${themeObj && themeObj.iconSvg ? `
+                            <div class="role-movie-pictogram" style="border: 1.5px solid ${window.hexToRgba(roleColor, 0.45)};" title="${themeObj.title}">
+                                ${themeObj.iconSvg}
+                            </div>
+                        ` : ''}
+                        <div class="role-card-text">
+                            <div style="font-weight: 700; color: #0f172a; text-shadow: 0 1px 2px rgba(255,255,255,0.9); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${role.name}</div>
+                            ${themeObj ? `<div style="font-size: 0.68rem; font-weight: 600; color: ${roleColor}; text-shadow: 0 1px 1px rgba(255,255,255,0.85); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${themeObj.title}</div>` : ''}
+                            ${role.todoist_project_name ? `<div class="text-muted" style="font-size:0.7rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><i class="fas fa-link"></i> ${role.todoist_project_name}</div>` : ''}
+                            <div style="font-weight: 700; color: #0f172a; text-shadow: 0 1px 3px rgba(255,255,255,0.95); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${role.name}</div>
+                            ${themeObj ? `<div style="font-size: 0.68rem; font-weight: 700; color: ${roleColor}; text-shadow: 0 1px 2px rgba(255,255,255,0.95); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${themeObj.title}</div>` : ''}
+                            ${role.todoist_project_name ? `<div style="font-size:0.7rem; font-weight: 600; color: #1e293b; text-shadow: 0 1px 2px rgba(255,255,255,0.9); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><i class="fas fa-link"></i> ${role.todoist_project_name}</div>` : ''}
+                        </div>
+                        <button class="btn-icon" style="flex-shrink: 0; background: rgba(255,255,255,0.88); border: 1px solid rgba(226,232,240,0.9); border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;" onclick="event.stopPropagation(); openHorizonModal('role', ${role.id})">
+                        <button class="btn-icon" style="flex-shrink: 0; background: rgba(255,255,255,0.9); border: 1px solid rgba(226,232,240,0.95); border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;" onclick="event.stopPropagation(); openHorizonModal('role', ${role.id})">
+                            <i class="fas fa-gear" style="font-size: 0.75rem; color: #334155;"></i>
+                        </button>
                     </div>
-                    <button class="btn-icon" onclick="event.stopPropagation(); openHorizonModal('role', ${role.id})">
-                        <i class="fas fa-gear" style="font-size: 0.75rem;"></i>
-                    </button>
                 </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
         rolesList.innerHTML = rolesHtml;
 
         // Filter and Render Projects
@@ -568,34 +680,186 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        ambitionsList.innerHTML = filteredProjects.map(a => {
+        ambitionsList.innerHTML = filteredProjects.map((a, idx) => {
             const total = a.todo_count + a.done_count + (a.archived_count || 0);
             const percent = total > 0 ? Math.round((a.done_count / total) * 100) : 0;
             const isStalled = a.todo_count === 0 && a.status === 'active';
             const isArchived = a.status === 'archived';
+            const priorityNum = a.priority || (idx + 1);
+            const roleObj = currentRoles.find(r => r.id === a.role_id);
+            const roleColor = (roleObj && roleObj.color) || a.role_color || '#64748b';
+            const tintBg = window.hexToRgba ? window.hexToRgba(roleColor, 0.08) : '#f8fafc';
+            const borderTint = window.hexToRgba ? window.hexToRgba(roleColor, 0.35) : '#e2e8f0';
+            const badgeBg = window.hexToRgba ? window.hexToRgba(roleColor, 0.14) : '#e0f2fe';
+            const badgeBorder = window.hexToRgba ? window.hexToRgba(roleColor, 0.38) : '#bae6fd';
+            const projectCardStyle = `border-left: 5px solid ${roleColor}; border-color: ${borderTint}; background: linear-gradient(135deg, ${tintBg} 0%, #ffffff 70%);`;
 
             return `
-                <div class="horizon-card project-card" onclick="showAmbitionDetail(${a.id})">
+                <div class="horizon-card project-card" style="${projectCardStyle}" ${!isArchived ? `draggable="true" data-ambition-id="${a.id}"` : ''} onclick="showAmbitionDetail(${a.id})">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem;">
-                        <div>
-                            <div class="card-title">${a.outcome}</div>
-                            ${a.todoist_label_name ? `<span class="todoist-badge" style="margin-top:0.25rem;"><i class="fas fa-tag"></i> @${a.todoist_label_name}</span>` : ''}
+                        <div style="display: flex; align-items: flex-start; gap: 0.45rem;">
+                            ${!isArchived ? `
+                                <span class="drag-handle" title="Drag card to reorder priority"><i class="fas fa-grip-vertical"></i></span>
+                                <span class="priority-badge" style="background: ${badgeBg}; color: ${roleColor}; border-color: ${badgeBorder};" title="Click to change priority number" onclick="editProjectPriorityInline(event, ${a.id}, ${priorityNum})">#${priorityNum}</span>
+                            ` : ''}
+                            <div>
+                                <div class="card-title">${a.outcome}</div>
+                                ${a.todoist_label_name ? `<span class="todoist-badge" style="margin-top:0.25rem;"><i class="fas fa-tag"></i> @${a.todoist_label_name}</span>` : ''}
+                            </div>
                         </div>
                         ${isArchived ? '<span class="archived-badge">Archived</span>' : (isStalled ? '<span class="stalled-badge">Stalled</span>' : '')}
                     </div>
                     
                     <div style="margin-top: auto;">
-                        <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 0.25rem;">
-                            <span class="text-muted" style="font-size: 0.75rem;">${a.role_name}</span>
+                        <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 0.35rem;">
+                            <span class="role-pill-badge" style="background: ${badgeBg}; color: ${roleColor}; border: 1px solid ${badgeBorder};">
+                                <span style="width: 7px; height: 7px; border-radius: 50%; background: ${roleColor}; display: inline-block;"></span>
+                                ${a.role_name || 'Unassigned'}
+                            </span>
                             <span class="progress-text">${isArchived ? `${total} task${total === 1 ? '' : 's'} archived` : `${a.done_count}/${total} done`}</span>
                         </div>
                         <div class="progress-container">
-                            <div class="progress-bar" style="width: ${percent}%"></div>
+                            <div class="progress-bar" style="width: ${percent}%; background: ${roleColor};"></div>
                         </div>
                     </div>
                 </div>
             `;
         }).join('');
+
+        // Attach Drag-and-Drop listeners for active project cards
+        let draggedAmbitionId = null;
+        const draggableCards = Array.from(ambitionsList.querySelectorAll('.project-card[draggable="true"]'));
+
+        const executeReorderDrop = async (sourceId, targetId) => {
+            if (!sourceId || !targetId || sourceId === targetId) return;
+
+            const visibleIds = filteredProjects.map(p => p.id);
+            const fromIdx = visibleIds.indexOf(sourceId);
+            const toIdx = visibleIds.indexOf(targetId);
+            if (fromIdx === -1 || toIdx === -1) return;
+
+            visibleIds.splice(fromIdx, 1);
+            visibleIds.splice(toIdx, 0, sourceId);
+
+            const res = await apiFetch('/ambitions/reorder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ordered_ids: visibleIds })
+            });
+
+            if (res) {
+                if (Array.isArray(res.ambitions)) {
+                    currentAmbitions = res.ambitions;
+                    renderHorizons();
+                } else {
+                    await fetchHorizons();
+                }
+                showToast('Project priority order updated!', 'success');
+            }
+        };
+
+        draggableCards.forEach(card => {
+            card.addEventListener('dragstart', (e) => {
+                draggedAmbitionId = parseInt(card.getAttribute('data-ambition-id'));
+                setTimeout(() => card.classList.add('dragging'), 0);
+                if (e.dataTransfer) {
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', String(draggedAmbitionId));
+                }
+            });
+
+            card.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+                const targetId = parseInt(card.getAttribute('data-ambition-id'));
+                if (targetId !== draggedAmbitionId) {
+                    draggableCards.forEach(c => {
+                        if (c !== card) c.classList.remove('drag-over');
+                    });
+                    card.classList.add('drag-over');
+                }
+            });
+
+            card.addEventListener('dragleave', (e) => {
+                if (!card.contains(e.relatedTarget)) {
+                    card.classList.remove('drag-over');
+                }
+            });
+
+            card.addEventListener('dragend', () => {
+                card.classList.remove('dragging');
+                draggableCards.forEach(c => c.classList.remove('drag-over'));
+                draggedAmbitionId = null;
+            });
+
+            card.addEventListener('drop', async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                card.classList.remove('drag-over');
+
+                const sourceId = draggedAmbitionId || parseInt(e.dataTransfer ? e.dataTransfer.getData('text/plain') : '');
+                const targetId = parseInt(card.getAttribute('data-ambition-id'));
+                await executeReorderDrop(sourceId, targetId);
+            });
+        });
+
+        ambitionsList.ondragover = (e) => {
+            e.preventDefault();
+            if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+        };
+
+        ambitionsList.ondrop = async (e) => {
+            e.preventDefault();
+            const sourceId = draggedAmbitionId || parseInt(e.dataTransfer ? e.dataTransfer.getData('text/plain') : '');
+            const overCard = e.target.closest('.project-card[draggable="true"]');
+            if (overCard) {
+                const targetId = parseInt(overCard.getAttribute('data-ambition-id'));
+                await executeReorderDrop(sourceId, targetId);
+            }
+        };
+    };
+
+    window.editProjectPriorityInline = (event, ambitionId, currentPriority) => {
+        event.stopPropagation();
+        const badgeEl = event.currentTarget;
+        if (badgeEl.querySelector('input')) return;
+
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.min = '1';
+        input.className = 'priority-inline-input';
+        input.value = currentPriority;
+
+        const commitPriority = async () => {
+            const newPrio = parseInt(input.value);
+            if (!isNaN(newPrio) && newPrio >= 1 && newPrio !== currentPriority) {
+                const res = await apiFetch(`/ambitions/${ambitionId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ priority: newPrio })
+                });
+                if (res) {
+                    showToast(`Project moved to priority #${newPrio}`, 'success');
+                }
+            }
+            await fetchHorizons();
+        };
+
+        input.addEventListener('click', (e) => e.stopPropagation());
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                input.blur();
+            } else if (e.key === 'Escape') {
+                fetchHorizons();
+            }
+        });
+        input.addEventListener('blur', commitPriority, { once: true });
+
+        badgeEl.replaceWith(input);
+        input.focus();
+        input.select();
     };
 
     const toggleArchivedProjectsBtn = document.getElementById('toggle-archived-projects-btn');
@@ -678,6 +942,62 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('ambition-detail').style.display = 'none';
     };
 
+    const renderRoleThemePicker = (selectedThemeKey = 'frozen', customColor = null) => {
+        const grid = document.getElementById('role-theme-grid');
+        const themeInput = document.getElementById('role-theme-key');
+        const colorInput = document.getElementById('role-color-input');
+        const hexDisplay = document.getElementById('role-color-hex-display');
+        if (!grid || !window.ROLE_THEMES) return;
+
+        const chosenTheme = window.getRoleTheme(selectedThemeKey);
+        const activeKey = chosenTheme.key;
+        const activeColor = customColor || chosenTheme.color;
+
+        if (themeInput) themeInput.value = activeKey;
+        if (colorInput) {
+            colorInput.value = activeColor;
+            colorInput.oninput = () => {
+                if (hexDisplay) hexDisplay.innerText = colorInput.value;
+            };
+        }
+        if (hexDisplay) hexDisplay.innerText = activeColor;
+
+        grid.innerHTML = window.ROLE_THEMES.map(t => {
+            const bgUri = window.getRoleThemeDataUri(t.key);
+            const isSel = t.key === activeKey;
+            return `
+                <div class="role-theme-option ${isSel ? 'selected' : ''}"
+                     style="border-color: ${isSel ? t.color : '#e2e8f0'};"
+                     onclick="selectRoleThemeOption('${t.key}')">
+                    <div class="role-card-bg" style="background-image: url('${bgUri}'); opacity: 0.42;"></div>
+                    <div class="role-card-veil" style="background: linear-gradient(90deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.48) 100%);"></div>
+                    <div style="position: relative; z-index: 2; display: flex; align-items: center; gap: 0.5rem;">
+                        <div style="width: 28px; height: 28px; flex-shrink: 0; background: #fff; border-radius: 0.45rem; border: 1px solid ${t.color}; display: flex; align-items: center; justify-content: center; padding: 2px;">
+                            ${t.iconSvg || ''}
+                        </div>
+                        <div style="min-width: 0; flex: 1;">
+                            <div style="font-size: 0.73rem; font-weight: 700; color: #0f172a; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${t.title}</div>
+                            <div style="font-size: 0.63rem; font-weight: 600; color: ${t.color}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${t.subtitle}</div>
+                        </div>
+                    <div class="role-card-bg" style="background-image: url('${bgUri}'); opacity: 0.78;"></div>
+                    <div class="role-card-veil" style="background: linear-gradient(90deg, rgba(255,255,255,0.75) 0%, rgba(255,255,255,0.18) 100%);"></div>
+                    <div style="position: relative; z-index: 2; display: flex; justify-content: space-between; align-items: flex-start;">
+                        <span style="font-size: 0.75rem; font-weight: 700; color: #0f172a; text-shadow: 0 1px 2px rgba(255,255,255,0.95); line-height: 1.15;">${t.title}</span>
+                        <span style="width: 12px; height: 12px; border-radius: 50%; background: ${t.color}; border: 1.5px solid #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.25); flex-shrink: 0;"></span>
+                    </div>
+                    <div style="position: relative; z-index: 2; font-size: 0.65rem; font-weight: 700; color: #1e293b; text-shadow: 0 1px 2px rgba(255,255,255,0.95); margin-top: 0.25rem;">
+                        ${t.subtitle}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    };
+
+    window.selectRoleThemeOption = (themeKey) => {
+        const theme = window.getRoleTheme(themeKey);
+        renderRoleThemePicker(theme.key, theme.color);
+    };
+
     window.openHorizonModal = async (type, id = null) => {
         resetHorizonModal();
         document.getElementById('horizon-type').value = type;
@@ -694,14 +1014,27 @@ document.addEventListener('DOMContentLoaded', () => {
             const item = type === 'role' ? currentRoles.find(r => r.id === id) : currentAmbitions.find(a => a.id === id);
             if (item) {
                 document.getElementById('horizon-name').value = type === 'role' ? item.name : item.outcome;
-                if (type === 'role') document.getElementById('role-description').value = item.description || "";
-                else {
+                if (type === 'role') {
+                    document.getElementById('role-description').value = item.description || "";
+                    renderRoleThemePicker(item.theme_key || 'frozen', item.color || null);
+                } else {
                     document.getElementById('ambition-role-select').value = item.role_id || "";
                     document.getElementById('ambition-status-select').value = item.status || "active";
+                    const prioInput = document.getElementById('ambition-priority-input');
+                    if (prioInput) prioInput.value = item.priority || "";
                 }
             }
             document.getElementById('horizon-delete-btn').style.display = 'block';
         } else {
+            if (type === 'role') {
+                const nextTheme = window.ROLE_THEMES
+                    ? window.ROLE_THEMES[(currentRoles.length || 0) % window.ROLE_THEMES.length]
+                    : { key: 'frozen', color: '#0284c7' };
+                renderRoleThemePicker(nextTheme.key, nextTheme.color);
+            } else if (type === 'ambition') {
+                const prioInput = document.getElementById('ambition-priority-input');
+                if (prioInput) prioInput.value = (currentAmbitions.length || 0) + 1;
+            }
             document.getElementById('horizon-delete-btn').style.display = 'none';
         }
         
@@ -723,13 +1056,20 @@ document.addEventListener('DOMContentLoaded', () => {
         let url = type === 'role' ? '/roles' : '/ambitions';
         if (id) url += `/${id}`;
         
+        const prioVal = document.getElementById('ambition-priority-input')
+            ? parseInt(document.getElementById('ambition-priority-input').value)
+            : NaN;
+
         const data = type === 'role' ? {
             name: document.getElementById('horizon-name').value,
-            description: document.getElementById('role-description').value
+            description: document.getElementById('role-description').value,
+            color: document.getElementById('role-color-input') ? document.getElementById('role-color-input').value : '#0284c7',
+            theme_key: document.getElementById('role-theme-key') ? document.getElementById('role-theme-key').value : 'frozen'
         } : {
             outcome: document.getElementById('horizon-name').value,
             h2_id: parseInt(document.getElementById('ambition-role-select').value) || null,
-            status: document.getElementById('ambition-status-select').value
+            status: document.getElementById('ambition-status-select').value,
+            priority: !isNaN(prioVal) && prioVal >= 1 ? prioVal : null
         };
 
         const res = await apiFetch(url, {
@@ -740,9 +1080,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (res) {
             horizonModal.classList.remove('active');
+            showToast(id ? `Updated ${type}!` : `Added new ${type}!`, 'success');
+            await Promise.all([fetchRoles(), fetchAmbitions('active')]);
+
+            if (clarifyModal.classList.contains('active')) {
+                if (type === 'role' && res.id) {
+                    document.getElementById('clarify-role').value = String(res.id);
+                    filterClarifyAmbitionsByRole(res.id, "");
+                } else if (type === 'ambition' && res.id) {
+                    const roleVal = res.h2_id ? String(res.h2_id) : (document.getElementById('clarify-role').value || "");
+                    document.getElementById('clarify-role').value = roleVal;
+                    filterClarifyAmbitionsByRole(roleVal, res.id);
+                }
+            }
+
             if (currentTab === 'review') {
                 loadReviewAreas();
-            } else {
+            } else if (currentTab === 'projects') {
                 fetchHorizons();
             }
         }
@@ -928,9 +1282,12 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    window.openReviewAddTask = (ambitionId) => {
-        resetClarifyModal();
-        document.getElementById('clarify-ambition').value = ambitionId;
+    window.openReviewAddTask = async (ambitionId) => {
+        await resetClarifyModal();
+        const amb = (currentAmbitions || []).find(a => a.id === ambitionId);
+        const roleId = amb && amb.role_id ? String(amb.role_id) : "";
+        document.getElementById('clarify-role').value = roleId;
+        filterClarifyAmbitionsByRole(roleId, ambitionId);
         clarifyModal.classList.add('active');
     };
 
@@ -1180,10 +1537,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Modal Closing ---
     document.querySelectorAll('.close-modal').forEach(b => {
         b.onclick = () => {
-            clarifyModal.classList.remove('active');
-            horizonModal.classList.remove('active');
-            taskEditModal.classList.remove('active');
-            if (projectRemoveModal) projectRemoveModal.classList.remove('active');
+            const parentModal = b.closest('.modal');
+            if (parentModal) {
+                parentModal.classList.remove('active');
+            } else {
+                clarifyModal.classList.remove('active');
+                horizonModal.classList.remove('active');
+                taskEditModal.classList.remove('active');
+                if (projectRemoveModal) projectRemoveModal.classList.remove('active');
+            }
         };
     });
 

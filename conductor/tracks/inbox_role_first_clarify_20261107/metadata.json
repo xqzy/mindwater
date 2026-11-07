@@ -1,0 +1,8 @@
+{
+  "track_id": "inbox_role_first_clarify_20261107",
+  "type": "feature",
+  "status": "completed",
+  "created_at": "2026-11-07T18:14:00Z",
+  "updated_at": "2026-11-07T18:17:00Z",
+  "description": "Select Role first when clarifying Inbox items to filter related Ambitions, and allow adding a Role or Ambition directly from the Inbox screen and Clarify modal"
+}

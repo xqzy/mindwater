@@ -809,6 +809,207 @@ button.primary:hover {
     color: #1e40af;
 }
 
+/* Project Priority & Drag-and-Drop */
+.project-card[draggable="true"] {
+    cursor: grab;
+    -webkit-user-drag: element;
+}
+
+.project-card.dragging {
+    opacity: 0.45;
+    transform: scale(0.98);
+    cursor: grabbing;
+}
+
+.project-card.drag-over {
+    border: 2px dashed var(--primary) !important;
+    background: #f0fdf4 !important;
+}
+
+.drag-handle {
+    color: var(--text-muted);
+    cursor: grab;
+    padding: 0.15rem 0.25rem;
+    font-size: 0.85rem;
+    transition: color 0.15s;
+}
+
+.drag-handle:hover {
+    color: var(--primary);
+}
+
+.priority-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #e0f2fe;
+    color: #0369a1;
+    border: 1px solid #bae6fd;
+    font-weight: 700;
+    font-size: 0.75rem;
+    padding: 0.15rem 0.45rem;
+    border-radius: 0.4rem;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.priority-badge:hover {
+    background: #bae6fd;
+    color: #075985;
+}
+
+.priority-inline-input {
+    width: 48px;
+    padding: 0.1rem 0.3rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    border: 1.5px solid var(--primary);
+    border-radius: 0.35rem;
+    text-align: center;
+    outline: none;
+}
+
+/* Role Cartoon/Disney Banner Cards & Theme Selector */
+.role-card.themed-role-card {
+    position: relative;
+    overflow: hidden;
+    padding: 0.85rem 1rem;
+    min-height: 64px;
+    justify-content: center;
+}
+
+.role-card-bg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    background-size: cover;
+    background-position: center right;
+    background-repeat: no-repeat;
+    opacity: 0.38;
+    opacity: 0.78;
+    pointer-events: none;
+    z-index: 1;
+    transition: opacity 0.25s ease, transform 0.3s ease;
+}
+
+.role-card.themed-role-card:hover .role-card-bg {
+    opacity: 0.48;
+    opacity: 0.9;
+    transform: scale(1.03);
+}
+
+.role-card-veil {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.88) 0%, rgba(255, 255, 255, 0.62) 55%, rgba(255, 255, 255, 0.22) 100%);
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.72) 0%, rgba(255, 255, 255, 0.32) 42%, rgba(255, 255, 255, 0.04) 80%);
+    pointer-events: none;
+    z-index: 1;
+}
+
+.role-card-content {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    gap: 0.5rem;
+    width: 100%;
+}
+
+.role-movie-pictogram {
+    width: 38px;
+    height: 38px;
+    flex-shrink: 0;
+    border-radius: 0.65rem;
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+    padding: 3px;
+}
+
+.role-movie-pictogram svg {
+    width: 30px;
+    height: 30px;
+    display: block;
+}
+
+.role-card-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+}
+
+.role-pill-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.15rem 0.55rem;
+    border-radius: 9999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+.role-theme-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.6rem;
+    max-height: 280px;
+    overflow-y: auto;
+    padding: 0.25rem;
+}
+
+.role-theme-option {
+    position: relative;
+    overflow: hidden;
+    border-radius: 0.65rem;
+    border: 2px solid var(--border);
+    padding: 0.55rem 0.65rem;
+    min-height: 58px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: all 0.18s ease;
+    background: var(--white);
+}
+
+.role-theme-option:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px -4px rgba(0, 0, 0, 0.12);
+}
+
+.role-theme-option.selected {
+    box-shadow: 0 0 0 2px var(--white), 0 0 0 4px var(--primary);
+}
+
+#horizon-modal {
+    z-index: 1100;
+}
+
+.btn-inline-link {
+    background: none;
+    border: none;
+    color: var(--primary);
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0.1rem 0.35rem;
+    border-radius: 0.35rem;
+    transition: background 0.15s;
+}
+
+.btn-inline-link:hover {
+    background: #eff6ff;
+    text-decoration: underline;
+}
+
 /* Responsive Extensions */
 @media (max-width: 768px) {
     body {

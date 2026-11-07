@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mindwater GTD</title>
-    <link rel="stylesheet" href="/static/style.css?v=5">
+    <link rel="stylesheet" href="/static/style.css?v=9">
+    <link rel="stylesheet" href="/static/style.css?v=11">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
@@ -74,9 +75,17 @@
                         <h2>Inbox Management</h2>
                         <p class="text-muted">Clarify these items into actions or projects.</p>
                     </div>
-                    <button id="inbox-sync-todoist-btn" class="btn-secondary" title="Sync with Todoist">
-                        <i class="fas fa-arrows-rotate"></i> &nbsp;Sync Todoist
-                    </button>
+                    <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                        <button id="inbox-add-role-btn" class="btn-secondary" title="Add a new Role">
+                            <i class="fas fa-plus"></i> &nbsp;Add Role
+                        </button>
+                        <button id="inbox-add-ambition-btn" class="btn-secondary" title="Add a new Ambition / Project">
+                            <i class="fas fa-plus"></i> &nbsp;Add Ambition
+                        </button>
+                        <button id="inbox-sync-todoist-btn" class="btn-secondary" title="Sync with Todoist">
+                            <i class="fas fa-arrows-rotate"></i> &nbsp;Sync Todoist
+                        </button>
+                    </div>
                 </div>
                 <div id="inbox-items-full" class="inbox-list">
                     <!-- Inbox items will be injected here -->
@@ -314,9 +323,26 @@
                             </div>
                         </div>
 
+                        <div class="form-group">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                                <label style="margin-bottom: 0;">1. Role</label>
+                                <button type="button" id="clarify-add-role-btn" class="btn-inline-link">
+                                    <i class="fas fa-plus"></i> Add Role
+                                </button>
+                            </div>
+                            <select id="clarify-role">
+                                <option value="">No specific role</option>
+                            </select>
+                        </div>
+
                         <div id="task-fields">
                             <div class="form-group">
-                                <label>Project (Ambition)</label>
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                                    <label style="margin-bottom: 0;">2. Project (Ambition)</label>
+                                    <button type="button" id="clarify-add-ambition-btn" class="btn-inline-link">
+                                        <i class="fas fa-plus"></i> Add Ambition
+                                    </button>
+                                </div>
                                 <select id="clarify-ambition">
                                     <option value="">None (Standalone Task)</option>
                                 </select>
@@ -339,13 +365,6 @@
                                 <label>Context Tags (comma separated)</label>
                                 <input type="text" id="clarify-contexts" placeholder="e.g. @home, @computer">
                             </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Role</label>
-                            <select id="clarify-role">
-                                <option value="">No specific role</option>
-                            </select>
                         </div>
 
                         <div class="modal-footer">
@@ -377,12 +396,31 @@
                                 <label>Description</label>
                                 <input type="text" id="role-description">
                             </div>
+                            <div class="form-group">
+                                <label>Role Color (Projects inherit this color)</label>
+                                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                    <input type="color" id="role-color-input" value="#0284c7" style="width: 52px; height: 38px; padding: 2px; border-radius: 0.5rem; cursor: pointer;">
+                                    <span id="role-color-hex-display" class="text-muted" style="font-family: monospace; font-size: 0.875rem;">#0284c7</span>
+                                    <span class="text-muted" style="font-size: 0.75rem;">Auto-synced when picking a movie theme below</span>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Cartoon / Disney Card Banner (Choose from 15 scenes)</label>
+                                <input type="hidden" id="role-theme-key" value="frozen">
+                                <div id="role-theme-grid" class="role-theme-grid"></div>
+                            </div>
                         </div>
 
                         <div id="ambition-extra-fields">
-                            <div class="form-group">
-                                <label>Role</label>
-                                <select id="ambition-role-select"></select>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Role</label>
+                                    <select id="ambition-role-select"></select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Priority (1 = Highest)</label>
+                                    <input type="number" id="ambition-priority-input" min="1" placeholder="e.g. 1">
+                                </div>
                             </div>
                             <div class="form-group">
                                 <label>Status</label>
@@ -477,6 +515,9 @@
         </div>
     </div>
 
-    <script src="/static/app.js?v=5"></script>
+    <script src="/static/role_themes.js?v=9"></script>
+    <script src="/static/app.js?v=9"></script>
+    <script src="/static/role_themes.js?v=11"></script>
+    <script src="/static/app.js?v=11"></script>
 </body>
 </html>

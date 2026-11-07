@@ -100,3 +100,18 @@
 
 - [x] **Track: Bi-Directional Todoist Integration & Mapping**
 *Link: [./tracks/todoist_bidirectional_sync_20261102/](./tracks/todoist_bidirectional_sync_20261102/)*
+
+---
+
+- [x] **Track: Project Prioritization & Drag-and-Drop Reordering**
+*Link: [./tracks/project_prioritization_drag_drop_20261104/](./tracks/project_prioritization_drag_drop_20261104/)*
+
+---
+
+- [x] **Track: Role Color Coding & 15 Cartoon/Disney Card Themes**
+*Link: [./tracks/role_themes_color_coding_20261104/](./tracks/role_themes_color_coding_20261104/)*
+
+---
+
+- [x] **Track: Role-First Inbox Clarification & Quick Role/Ambition Creation**
+*Link: [./tracks/inbox_role_first_clarify_20261107/](./tracks/inbox_role_first_clarify_20261107/)*
