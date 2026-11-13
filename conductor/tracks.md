@@ -115,3 +115,13 @@
 
 - [x] **Track: Role-First Inbox Clarification & Quick Role/Ambition Creation**
 *Link: [./tracks/inbox_role_first_clarify_20261107/](./tracks/inbox_role_first_clarify_20261107/)*
+
+---
+
+- [x] **Track: Task Deletion, Completion, & Finalised Tasks Filter**
+*Link: [./tracks/task_deletion_and_completed_filter_20261113/](./tracks/task_deletion_and_completed_filter_20261113/)*
+
+---
+
+- [x] **Track: Role Theme Picker Fix, Task Monitoring Status, Snooze, & Horizons Task Edit**
+*Link: [./tracks/task_monitoring_snooze_horizon_edit_20261113/](./tracks/task_monitoring_snooze_horizon_edit_20261113/)*

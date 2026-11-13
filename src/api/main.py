@@ -22,6 +22,7 @@ from src.services.todoist import (
     close_todoist_task,
     reopen_todoist_task,
     delete_todoist_task,
+    update_todoist_task,
     export_mindwater_task_to_todoist,
     sync_with_todoist,
 )
@@ -50,6 +51,8 @@ class ClarifyRequest(BaseModel):
     energy_level: Optional[str] = "Medium"
     estimated_time: Optional[int] = 0
     context_tags: Optional[List[str]] = []
+    status: Optional[str] = "todo"
+    due_date: Optional[str] = None
     email_id: Optional[str] = None # For clarifying emails
 
 class TaskUpdate(BaseModel):
@@ -61,6 +64,10 @@ class TaskUpdate(BaseModel):
     ambition_id: Optional[int] = None
     context_tags: Optional[List[str]] = None
     planned_date: Optional[datetime] = None
+    due_date: Optional[str] = None
+
+class TaskSnoozeRequest(BaseModel):
+    due_date: Optional[str] = None
 
 class RoleCreate(BaseModel):
     name: str
@@ -309,6 +316,13 @@ def clarify_inbox_item(item_id: int, request: ClarifyRequest, db: Session = Depe
 
     # Create target record
     if request.type == "task":
+        effective_due = (request.due_date.strip()[:10] if request.due_date and request.due_date.strip() else todoist_due)
+        planned_dt = None
+        if effective_due:
+            try:
+                planned_dt = datetime.fromisoformat(effective_due[:10])
+            except ValueError:
+                planned_dt = None
         new_task = crud.create_task(
             db,
             title=request.title,
@@ -317,11 +331,14 @@ def clarify_inbox_item(item_id: int, request: ClarifyRequest, db: Session = Depe
             energy_level=request.energy_level,
             estimated_time=request.estimated_time,
             context_tags=request.context_tags,
+            planned_date=planned_dt,
             todoist_task_id=todoist_tid,
-            todoist_due_date=todoist_due,
+            todoist_due_date=effective_due,
             todoist_priority=todoist_prio,
             todoist_created_at=todoist_created
         )
+        if request.status in ("todo", "monitoring") and request.status != "todo":
+            crud.update_task_status(db, new_task.id, request.status)
         if todoist_tid and get_todoist_token(db):
             try:
                 export_mindwater_task_to_todoist(db, new_task)
@@ -357,8 +374,24 @@ def dismiss_email(email_id: str, db: Session = Depends(get_db)):
 # --- Tasks ---
 
 @app.get("/tasks")
-def get_tasks(role_id: Optional[int] = None, context: Optional[str] = None, energy: Optional[str] = None, include_archived: bool = False, db: Session = Depends(get_db)):
-    tasks = crud.get_filtered_tasks(db, role_id=role_id, context_tag=context, energy_level=energy, include_archived=include_archived)
+def get_tasks(
+    role_id: Optional[int] = None,
+    context: Optional[str] = None,
+    energy: Optional[str] = None,
+    status_filter: Optional[str] = None,
+    include_archived: bool = False,
+    include_completed: bool = False,
+    db: Session = Depends(get_db)
+):
+    tasks = crud.get_filtered_tasks(
+        db,
+        role_id=role_id,
+        context_tag=context,
+        energy_level=energy,
+        include_archived=include_archived,
+        include_completed=include_completed,
+        status_filter=status_filter
+    )
     return [{
         "id": t.id,
         "title": t.title,
@@ -370,14 +403,32 @@ def get_tasks(role_id: Optional[int] = None, context: Optional[str] = None, ener
         "role": {"id": t.role.id, "name": t.role.name} if t.role else None,
         "ambition_id": t.ambition_id,
         "ambition": {"id": t.ambition.id, "outcome": t.ambition.outcome} if t.ambition else None,
+        "due_date": t.todoist_due_date or (t.planned_date.strftime("%Y-%m-%d") if t.planned_date else None),
         "todoist_task_id": t.todoist_task_id,
         "todoist_due_date": t.todoist_due_date,
         "todoist_priority": t.todoist_priority,
         "todoist_created_at": t.todoist_created_at.isoformat() if t.todoist_created_at else None
     } for t in tasks]
 
+@app.delete("/tasks/{task_id}")
+def delete_task_endpoint(task_id: int, db: Session = Depends(get_db)):
+    task = db.query(crud.models.Task).filter(crud.models.Task.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if task.todoist_task_id:
+        token = get_todoist_token(db)
+        if token:
+            try:
+                close_todoist_task(token, str(task.todoist_task_id))
+            except Exception:
+                pass
+    crud.delete_task(db, task_id)
+    return {"status": "success"}
+
 @app.patch("/tasks/{task_id}/status")
 def toggle_task_status(task_id: int, status: str, db: Session = Depends(get_db)):
+    existing = db.query(crud.models.Task).filter(crud.models.Task.id == task_id).first()
+    was_done = existing.status == "done" if existing else False
     task = crud.update_task_status(db, task_id, status)
     if task and task.todoist_task_id:
         token = get_todoist_token(db)
@@ -385,11 +436,28 @@ def toggle_task_status(task_id: int, status: str, db: Session = Depends(get_db))
             try:
                 if status == "done":
                     close_todoist_task(token, str(task.todoist_task_id))
-                elif status == "todo":
+                elif status in ("todo", "monitoring") and was_done:
                     reopen_todoist_task(token, str(task.todoist_task_id))
             except Exception:
                 pass
     return {"status": "success"}
+
+@app.post("/tasks/{task_id}/snooze")
+def snooze_task_endpoint(task_id: int, req: TaskSnoozeRequest, db: Session = Depends(get_db)):
+    task = crud.snooze_task(db, task_id, req.due_date)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if task.todoist_task_id:
+        token = get_todoist_token(db)
+        if token:
+            try:
+                update_todoist_task(token, str(task.todoist_task_id), due_date=task.todoist_due_date or "")
+            except Exception:
+                pass
+    return {
+        "status": "success",
+        "due_date": task.todoist_due_date
+    }
 
 @app.put("/tasks/{task_id}")
 def update_task_details(task_id: int, update: TaskUpdate, db: Session = Depends(get_db)):
@@ -513,7 +581,7 @@ def archive_ambition(ambition_id: int, db: Session = Depends(get_db)):
     if token:
         linked_tasks = crud.get_tasks_by_ambition(db, ambition_id)
         for t in linked_tasks:
-            if t.todoist_task_id and t.status == "todo":
+            if t.todoist_task_id and t.status in ("todo", "monitoring"):
                 try:
                     close_todoist_task(token, str(t.todoist_task_id))
                 except Exception:
@@ -554,6 +622,10 @@ def get_ambition_tasks(ambition_id: int, db: Session = Depends(get_db)):
         "energy_level": t.energy_level,
         "estimated_time": t.estimated_time,
         "actual_time": t.actual_time,
+        "role_id": t.role_id,
+        "ambition_id": t.ambition_id,
+        "context_tags": t.context_tags,
+        "due_date": t.todoist_due_date or (t.planned_date.strftime("%Y-%m-%d") if t.planned_date else None),
         "todoist_task_id": t.todoist_task_id,
         "todoist_due_date": t.todoist_due_date,
         "todoist_priority": t.todoist_priority

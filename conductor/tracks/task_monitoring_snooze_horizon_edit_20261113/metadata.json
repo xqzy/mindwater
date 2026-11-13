@@ -1,0 +1,8 @@
+{
+  "track_id": "task_monitoring_snooze_horizon_edit_20261113",
+  "type": "feature",
+  "status": "completed",
+  "created_at": "2026-11-13T18:00:00Z",
+  "updated_at": "2026-11-13T18:15:00Z",
+  "description": "Fix Role Theme Picker in Horizons, add 'monitoring' task status, add task snooze/due date function (including for monitoring tasks), and allow editing tasks from the Horizons screen."
+}

@@ -4,8 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mindwater GTD</title>
-    <link rel="stylesheet" href="/static/style.css?v=9">
-    <link rel="stylesheet" href="/static/style.css?v=11">
+    <link rel="stylesheet" href="/static/style.css?v=13">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
@@ -109,6 +108,14 @@
                             <option value="Medium">Medium</option>
                             <option value="High">High</option>
                         </select>
+                        <select id="filter-status">
+                            <option value="">All Open (To Do & Monitoring)</option>
+                            <option value="todo">Next Actions (To Do)</option>
+                            <option value="monitoring">Monitoring (Waiting For)</option>
+                        </select>
+                        <label class="checkbox-filter" style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.875rem; color: var(--text-muted); cursor: pointer;">
+                            <input type="checkbox" id="filter-completed-tasks"> Show Finalised
+                        </label>
                         <label class="checkbox-filter" style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.875rem; color: var(--text-muted); cursor: pointer;">
                             <input type="checkbox" id="filter-archived-tasks"> Show Archived
                         </label>
@@ -123,7 +130,7 @@
                                 <th>Task</th>
                                 <th>Role</th>
                                 <th>Context</th>
-                                <th width="100">Actions</th>
+                                <th width="140">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="tasks-table-body"></tbody>
@@ -349,6 +356,19 @@
                             </div>
                             <div class="form-row">
                                 <div class="form-group">
+                                    <label>Status</label>
+                                    <select id="clarify-status">
+                                        <option value="todo" selected>Next Action (To Do)</option>
+                                        <option value="monitoring">Monitor (Someone Else's Action)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Due / Snooze Date (Optional)</label>
+                                    <input type="date" id="clarify-due-date">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
                                     <label>Energy Level</label>
                                     <select id="clarify-energy">
                                         <option value="Low">Low</option>
@@ -490,6 +510,21 @@
                         </div>
                         <div class="form-row">
                             <div class="form-group">
+                                <label>Status</label>
+                                <select id="edit-task-status">
+                                    <option value="todo">Next Action (To Do)</option>
+                                    <option value="monitoring">Monitoring (Someone Else)</option>
+                                    <option value="done">Finalised (Done)</option>
+                                    <option value="archived">Archived</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Due / Snooze Date</label>
+                                <input type="date" id="edit-task-due-date">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
                                 <label>Energy</label>
                                 <select id="edit-task-energy">
                                     <option value="Low">Low</option>
@@ -506,8 +541,47 @@
                             <label>Contexts</label>
                             <input type="text" id="edit-task-contexts">
                         </div>
-                        <div class="modal-footer">
-                            <button type="submit" class="btn-primary" style="width: 100%;">Save Changes</button>
+                        <div class="modal-footer" style="display: flex; justify-content: space-between; gap: 0.75rem;">
+                            <button type="button" class="btn-danger" id="delete-task-btn">
+                                <i class="fas fa-trash-can"></i> &nbsp;Delete Task
+                            </button>
+                            <button type="submit" class="btn-primary" style="flex: 1;">Save Changes</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Task Snooze / Due Date Modal -->
+            <div id="task-snooze-modal" class="modal">
+                <div class="modal-content" style="max-width: 440px;">
+                    <div class="modal-header">
+                        <h3><i class="fas fa-clock" style="color: var(--primary); margin-right: 0.35rem;"></i> Snooze / Set Due Date</h3>
+                        <button class="close-modal">&times;</button>
+                    </div>
+                    <form id="task-snooze-form">
+                        <input type="hidden" id="snooze-task-id">
+                        <input type="hidden" id="snooze-ambition-id">
+                        <p id="snooze-task-title" class="text-muted" style="margin-bottom: 1rem; font-size: 0.9rem; font-weight: 500;"></p>
+                        <div class="form-group">
+                            <label>Quick Snooze Presets</label>
+                            <div class="snooze-presets">
+                                <button type="button" class="btn-secondary snooze-preset-btn" data-days="1">Tomorrow (+1d)</button>
+                                <button type="button" class="btn-secondary snooze-preset-btn" data-days="3">In 3 Days (+3d)</button>
+                                <button type="button" class="btn-secondary snooze-preset-btn" data-days="7">Next Week (+7d)</button>
+                                <button type="button" class="btn-secondary snooze-preset-btn" data-days="14">In 2 Weeks (+14d)</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Choose Custom Due Date</label>
+                            <input type="date" id="snooze-date-input">
+                        </div>
+                        <div class="modal-footer" style="display: flex; justify-content: space-between; gap: 0.75rem;">
+                            <button type="button" class="btn-secondary" id="clear-snooze-btn">
+                                <i class="fas fa-calendar-xmark"></i> &nbsp;Clear Date
+                            </button>
+                            <button type="submit" class="btn-primary" style="flex: 1;">
+                                <i class="fas fa-check"></i> &nbsp;Save Due Date
+                            </button>
                         </div>
                     </form>
                 </div>
@@ -515,9 +589,7 @@
         </div>
     </div>
 
-    <script src="/static/role_themes.js?v=9"></script>
-    <script src="/static/app.js?v=9"></script>
-    <script src="/static/role_themes.js?v=11"></script>
-    <script src="/static/app.js?v=11"></script>
+    <script src="/static/role_themes.js?v=13"></script>
+    <script src="/static/app.js?v=13"></script>
 </body>
 </html>

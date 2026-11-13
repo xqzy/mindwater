@@ -246,6 +246,8 @@ def update_todoist_task(
             data["due_date"] = due_date.strftime("%Y-%m-%d")
         elif isinstance(due_date, str) and due_date:
             data["due_date"] = due_date[:10]
+        elif due_date == "":
+            data["due_string"] = "no date"
     if labels is not None:
         data["labels"] = [lbl for lbl in labels if lbl]
     if duration_minutes is not None and int(duration_minutes) > 0:
@@ -486,10 +488,10 @@ def sync_with_todoist(db: Session) -> Dict[str, Any]:
                 db.add(new_inbox)
                 imported_inbox += 1
 
-    # Two-way completion sync: Any local 'todo' task with a todoist_task_id not in active_remote_ids was completed in Todoist
+    # Two-way completion sync: Any local 'todo' or 'monitoring' task with a todoist_task_id not in active_remote_ids was completed in Todoist
     local_synced_open_tasks = db.query(models.Task).filter(
         models.Task.todoist_task_id.isnot(None),
-        models.Task.status == "todo"
+        models.Task.status.in_(["todo", "monitoring"])
     ).all()
     for lt in local_synced_open_tasks:
         if str(lt.todoist_task_id) not in active_remote_ids:

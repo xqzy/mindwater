@@ -5,6 +5,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentRoles = [];
     let currentAmbitions = [];
     let currentTasks = [];
+    let currentDetailTasks = [];
+    let currentDetailAmbitionId = null;
+    let editingFromAmbitionId = null;
     let todoistEnabled = false;
     let todoistMaskedToken = "";
     let lastTodoistSync = null;
@@ -20,12 +23,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const clarifyModal = document.getElementById('clarify-modal');
     const horizonModal = document.getElementById('horizon-modal');
     const taskEditModal = document.getElementById('task-edit-modal');
+    const taskSnoozeModal = document.getElementById('task-snooze-modal');
     const projectRemoveModal = document.getElementById('project-remove-modal');
     
     // Forms
     const clarifyForm = document.getElementById('clarify-form');
     const horizonForm = document.getElementById('horizon-form');
     const taskEditForm = document.getElementById('task-edit-form');
+    const taskSnoozeForm = document.getElementById('task-snooze-form');
 
     // --- Navigation ---
     navItems.forEach(item => {
@@ -198,6 +203,22 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!item.todoist_task_id) return '';
         const url = `https://app.todoist.com/app/task/${item.todoist_task_id}`;
         return `<a href="${url}" target="_blank" rel="noopener" class="todoist-badge" onclick="event.stopPropagation();" title="Open in Todoist"><i class="fas fa-check-circle"></i> Todoist <i class="fas fa-arrow-up-right-from-square" style="font-size:0.6rem;"></i></a>`;
+    };
+
+    const renderMonitoringBadge = (task) => {
+        if (task.status !== 'monitoring') return '';
+        return `<span class="monitoring-badge" title="Monitoring: waiting for someone else"><i class="fas fa-eye"></i> Monitoring</span>`;
+    };
+
+    const renderDueDateBadge = (task, ambitionId = null) => {
+        const dueStr = (task.due_date || task.todoist_due_date || '').slice(0, 10);
+        if (!dueStr) return '';
+        const today = getTodayDateStr();
+        const isOverdue = dueStr < today && task.status !== 'done';
+        const isSnoozedFuture = dueStr > today;
+        const prefix = isSnoozedFuture ? 'Snoozed until' : (dueStr === today ? 'Due Today' : 'Due');
+        const ambArg = ambitionId ? ambitionId : 'null';
+        return `<span class="snoozed-badge ${isOverdue ? 'overdue' : ''}" onclick="event.stopPropagation(); openSnoozeModal(${task.id}, '${dueStr}', ${ambArg})" title="Click to snooze or change due date"><i class="fas fa-clock"></i> ${prefix} ${dueStr}</span>`;
     };
 
     // --- Data Fetching ---
@@ -464,6 +485,8 @@ document.addEventListener('DOMContentLoaded', () => {
             title: document.getElementById('clarify-title').value,
             role_id: parseInt(document.getElementById('clarify-role').value) || null,
             ambition_id: parseInt(document.getElementById('clarify-ambition').value) || null,
+            status: document.getElementById('clarify-status')?.value || 'todo',
+            due_date: document.getElementById('clarify-due-date')?.value || null,
             energy_level: document.getElementById('clarify-energy').value,
             estimated_time: parseInt(document.getElementById('clarify-time').value) || 0,
             context_tags: document.getElementById('clarify-contexts').value.split(',').map(t => t.trim()).filter(t => t),
@@ -505,10 +528,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const fetchTasks = async () => {
         const role = document.getElementById('filter-role').value;
         const energy = document.getElementById('filter-energy').value;
+        const statusFilter = document.getElementById('filter-status')?.value || "";
+        const includeCompleted = document.getElementById('filter-completed-tasks')?.checked || false;
         const includeArchived = document.getElementById('filter-archived-tasks')?.checked || false;
         let url = `/tasks?`;
         if (role) url += `role_id=${role}&`;
         if (energy) url += `energy=${energy}&`;
+        if (statusFilter) url += `status_filter=${statusFilter}&`;
+        if (includeCompleted) url += `include_completed=true&`;
         if (includeArchived) url += `include_archived=true&`;
         
         currentTasks = await apiFetch(url);
@@ -521,13 +548,24 @@ document.addEventListener('DOMContentLoaded', () => {
             tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 2rem;">No tasks found.</td></tr>';
             return;
         }
-        tbody.innerHTML = currentTasks.map(task => `
+        tbody.innerHTML = currentTasks.map(task => {
+            const isDone = task.status === 'done';
+            const isMonitoring = task.status === 'monitoring';
+            const dueVal = (task.due_date || task.todoist_due_date || '').slice(0, 10);
+            return `
             <tr>
-                <td><div class="status-circle ${task.status === 'done' ? 'done' : ''}" onclick="toggleTaskStatus(${task.id}, '${task.status}')"></div></td>
+                <td>
+                    <div class="status-circle ${isDone ? 'done' : ''}"
+                         title="${isDone ? 'Click to reopen task' : 'Click to mark task as Done (Finalised)'}"
+                         onclick="toggleTaskStatus(${task.id}, '${task.status}')"></div>
+                </td>
                 <td>
                     <div style="font-weight: 500; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-                        <span>${task.title}</span>
+                        <span style="${isDone ? 'text-decoration: line-through; color: var(--text-muted);' : ''}">${task.title}</span>
+                        ${isDone ? '<span class="badge success">Finalised</span>' : ''}
+                        ${renderMonitoringBadge(task)}
                         ${task.status === 'archived' ? '<span class="archived-badge">Archived</span>' : ''}
+                        ${renderDueDateBadge(task)}
                         ${renderTodoistLinkBadge(task)}
                         ${renderTodoistUrgentBadge(task)}
                     </div>
@@ -540,18 +578,130 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${task.context_tags ? task.context_tags.map(c => `<small class="text-muted">${c}</small>`).join(' ') : ''}</td>
                 <td>
                     <div style="display: flex; gap: 0.25rem; align-items: center;">
-                        <button class="btn-icon" onclick="openTaskEditModal(${task.id})" title="Edit"><i class="fas fa-pen-to-square"></i></button>
+                        <button class="btn-icon ${isMonitoring ? 'active-monitor' : ''}" onclick="toggleTaskMonitor(${task.id}, '${task.status}')" title="${isMonitoring ? 'Switch back to Next Action (To Do)' : 'Change status to Monitoring (Someone else to do)'}">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="btn-icon" onclick="openSnoozeModal(${task.id}, '${dueVal}')" title="Snooze / Set Due Date">
+                            <i class="fas fa-clock" style="${dueVal ? 'color: #4f46e5;' : ''}"></i>
+                        </button>
+                        <button class="btn-icon" onclick="openTaskEditModal(${task.id})" title="Edit Task"><i class="fas fa-pen-to-square"></i></button>
                         ${todoistEnabled ? `<button class="btn-icon" onclick="pushToTodoist(${task.id})" title="${task.todoist_task_id ? 'Update in Todoist' : 'Push to Todoist'}"><i class="fas fa-share-from-square" style="${task.todoist_task_id ? 'color:#e11d48;' : ''}"></i></button>` : ''}
+                        <button class="btn-icon btn-danger-icon" onclick="deleteTask(${task.id})" title="Delete Task"><i class="fas fa-trash-can"></i></button>
                     </div>
                 </td>
             </tr>
-        `).join('');
+            `;
+        }).join('');
     };
 
     window.toggleTaskStatus = async (id, currentStatus) => {
         const newStatus = currentStatus === 'done' ? 'todo' : 'done';
-        await apiFetch(`/tasks/${id}/status?status=${newStatus}`, { method: 'PATCH' });
+        const res = await apiFetch(`/tasks/${id}/status?status=${newStatus}`, { method: 'PATCH' });
+        if (res) {
+            showToast(newStatus === 'done' ? 'Task marked as Finalised (Done)!' : 'Task reopened!', 'success', 3500);
+        }
         fetchTasks();
+    };
+
+    window.toggleTaskMonitor = async (id, currentStatus, ambitionId = null) => {
+        const newStatus = currentStatus === 'monitoring' ? 'todo' : 'monitoring';
+        const res = await apiFetch(`/tasks/${id}/status?status=${newStatus}`, { method: 'PATCH' });
+        if (res) {
+            showToast(
+                newStatus === 'monitoring'
+                    ? 'Task set to Monitoring (Waiting For).'
+                    : 'Task switched to Next Action (To Do).',
+                'info',
+                3500
+            );
+        }
+        if (ambitionId) {
+            await fetchHorizons();
+            showAmbitionDetail(ambitionId);
+        } else {
+            fetchTasks();
+        }
+    };
+
+    const addDaysToToday = (days) => {
+        const d = new Date();
+        d.setDate(d.getDate() + Number(days));
+        return d.toISOString().slice(0, 10);
+    };
+
+    window.openSnoozeModal = (id, currentDueDate = '', ambitionId = null) => {
+        const task = (currentTasks || []).find(t => t.id === id) || (currentDetailTasks || []).find(t => t.id === id);
+        document.getElementById('snooze-task-id').value = id;
+        document.getElementById('snooze-ambition-id').value = ambitionId || '';
+        const titleEl = document.getElementById('snooze-task-title');
+        if (titleEl) {
+            titleEl.innerText = task ? `${task.title}${task.status === 'monitoring' ? ' (Monitoring)' : ''}` : `Task #${id}`;
+        }
+        const dateInput = document.getElementById('snooze-date-input');
+        if (dateInput) {
+            dateInput.value = currentDueDate ? currentDueDate.slice(0, 10) : addDaysToToday(1);
+        }
+        if (taskSnoozeModal) taskSnoozeModal.classList.add('active');
+    };
+
+    document.querySelectorAll('.snooze-preset-btn').forEach(btn => {
+        btn.onclick = () => {
+            const days = parseInt(btn.getAttribute('data-days')) || 1;
+            const dateInput = document.getElementById('snooze-date-input');
+            if (dateInput) dateInput.value = addDaysToToday(days);
+        };
+    });
+
+    const saveSnoozeDate = async (dueDateStr) => {
+        const id = parseInt(document.getElementById('snooze-task-id').value);
+        const ambitionId = parseInt(document.getElementById('snooze-ambition-id').value) || null;
+        if (!id) return;
+        const res = await apiFetch(`/tasks/${id}/snooze`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ due_date: dueDateStr })
+        });
+        if (res) {
+            if (taskSnoozeModal) taskSnoozeModal.classList.remove('active');
+            showToast(dueDateStr ? `Task snoozed / due date set to ${dueDateStr}` : 'Task due date cleared.', 'success', 3500);
+            if (ambitionId) {
+                await fetchHorizons();
+                showAmbitionDetail(ambitionId);
+            } else {
+                fetchTasks();
+            }
+        }
+    };
+
+    if (taskSnoozeForm) {
+        taskSnoozeForm.onsubmit = async (e) => {
+            e.preventDefault();
+            const dueVal = document.getElementById('snooze-date-input')?.value || '';
+            await saveSnoozeDate(dueVal);
+        };
+    }
+
+    const clearSnoozeBtn = document.getElementById('clear-snooze-btn');
+    if (clearSnoozeBtn) {
+        clearSnoozeBtn.onclick = async () => {
+            await saveSnoozeDate('');
+        };
+    }
+
+    window.deleteTask = async (id, ambitionId = null) => {
+        if (!id) return;
+        if (!confirm('Are you sure you want to permanently delete this task?')) return;
+        const res = await apiFetch(`/tasks/${id}`, { method: 'DELETE' });
+        if (res) {
+            taskEditModal.classList.remove('active');
+            showToast('Task deleted.', 'info', 3500);
+            if (ambitionId) {
+                await fetchHorizons();
+                showAmbitionDetail(ambitionId);
+            } else {
+                fetchTasks();
+            }
+        }
     };
 
     window.pushToTodoist = async (id) => {
@@ -564,29 +714,49 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('filter-role').onchange = fetchTasks;
     document.getElementById('filter-energy').onchange = fetchTasks;
+    const filterStatusEl = document.getElementById('filter-status');
+    if (filterStatusEl) filterStatusEl.onchange = fetchTasks;
+    const filterCompletedTasksEl = document.getElementById('filter-completed-tasks');
+    if (filterCompletedTasksEl) filterCompletedTasksEl.onchange = fetchTasks;
     const filterArchivedTasksEl = document.getElementById('filter-archived-tasks');
     if (filterArchivedTasksEl) filterArchivedTasksEl.onchange = fetchTasks;
     document.getElementById('clear-filters').onclick = () => {
         document.getElementById('filter-role').value = "";
         document.getElementById('filter-energy').value = "";
+        if (filterStatusEl) filterStatusEl.value = "";
+        if (filterCompletedTasksEl) filterCompletedTasksEl.checked = false;
         if (filterArchivedTasksEl) filterArchivedTasksEl.checked = false;
         fetchTasks();
     };
 
-    window.openTaskEditModal = async (id) => {
-        const task = currentTasks.find(t => t.id === id);
+    const deleteTaskBtn = document.getElementById('delete-task-btn');
+    if (deleteTaskBtn) {
+        deleteTaskBtn.onclick = () => {
+            const id = parseInt(document.getElementById('edit-task-id').value);
+            if (id) deleteTask(id, editingFromAmbitionId);
+        };
+    }
+
+    window.openTaskEditModal = async (id, ambitionId = null) => {
+        const task = (currentTasks || []).find(t => t.id === id) || (currentDetailTasks || []).find(t => t.id === id);
         if (!task) return;
+        editingFromAmbitionId = ambitionId;
         
         await Promise.all([fetchRoles(), fetchAmbitions('active')]);
         
         document.getElementById('edit-task-id').value = task.id;
         document.getElementById('edit-task-title').value = task.title;
-        document.getElementById('edit-task-energy').value = task.energy_level;
-        document.getElementById('edit-task-time').value = task.estimated_time;
+        const statusSelect = document.getElementById('edit-task-status');
+        if (statusSelect) statusSelect.value = task.status || 'todo';
+        const dueInput = document.getElementById('edit-task-due-date');
+        if (dueInput) dueInput.value = (task.due_date || task.todoist_due_date || '').slice(0, 10);
+        document.getElementById('edit-task-energy').value = task.energy_level || 'Medium';
+        document.getElementById('edit-task-time').value = task.estimated_time || 0;
         document.getElementById('edit-task-contexts').value = task.context_tags ? task.context_tags.join(', ') : '';
         
-        document.getElementById('edit-task-role').value = task.role_id || "";
-        filterEditTaskAmbitionsByRole(task.role_id || "", task.ambition_id || "");
+        const fallbackRoleId = task.role_id || (ambitionId ? (currentAmbitions.find(a => a.id === ambitionId)?.role_id || "") : "");
+        document.getElementById('edit-task-role').value = fallbackRoleId || "";
+        filterEditTaskAmbitionsByRole(fallbackRoleId || "", task.ambition_id || ambitionId || "");
         
         taskEditModal.classList.add('active');
     };
@@ -596,6 +766,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const id = document.getElementById('edit-task-id').value;
         const data = {
             title: document.getElementById('edit-task-title').value,
+            status: document.getElementById('edit-task-status')?.value || 'todo',
+            due_date: document.getElementById('edit-task-due-date')?.value || "",
             role_id: parseInt(document.getElementById('edit-task-role').value) || null,
             ambition_id: parseInt(document.getElementById('edit-task-ambition').value) || null,
             energy_level: document.getElementById('edit-task-energy').value,
@@ -608,7 +780,15 @@ document.addEventListener('DOMContentLoaded', () => {
             body: JSON.stringify(data)
         });
         taskEditModal.classList.remove('active');
-        fetchTasks();
+        showToast('Task updated!', 'success', 3000);
+        if (editingFromAmbitionId || currentTab === 'projects') {
+            await fetchHorizons();
+            const targetAmbId = editingFromAmbitionId || currentDetailAmbitionId;
+            if (targetAmbId) showAmbitionDetail(targetAmbId);
+            editingFromAmbitionId = null;
+        } else {
+            fetchTasks();
+        }
     };
 
     // --- Horizons Screen ---
@@ -642,20 +822,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="role-card-bg" style="background-image: url('${bgDataUri}');"></div>
                     <div class="role-card-veil"></div>
                     <div class="role-card-content">
-                        ${themeObj && themeObj.iconSvg ? `
-                            <div class="role-movie-pictogram" style="border: 1.5px solid ${window.hexToRgba(roleColor, 0.45)};" title="${themeObj.title}">
-                                ${themeObj.iconSvg}
-                            </div>
-                        ` : ''}
                         <div class="role-card-text">
-                            <div style="font-weight: 700; color: #0f172a; text-shadow: 0 1px 2px rgba(255,255,255,0.9); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${role.name}</div>
-                            ${themeObj ? `<div style="font-size: 0.68rem; font-weight: 600; color: ${roleColor}; text-shadow: 0 1px 1px rgba(255,255,255,0.85); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${themeObj.title}</div>` : ''}
-                            ${role.todoist_project_name ? `<div class="text-muted" style="font-size:0.7rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><i class="fas fa-link"></i> ${role.todoist_project_name}</div>` : ''}
                             <div style="font-weight: 700; color: #0f172a; text-shadow: 0 1px 3px rgba(255,255,255,0.95); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${role.name}</div>
                             ${themeObj ? `<div style="font-size: 0.68rem; font-weight: 700; color: ${roleColor}; text-shadow: 0 1px 2px rgba(255,255,255,0.95); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${themeObj.title}</div>` : ''}
                             ${role.todoist_project_name ? `<div style="font-size:0.7rem; font-weight: 600; color: #1e293b; text-shadow: 0 1px 2px rgba(255,255,255,0.9); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><i class="fas fa-link"></i> ${role.todoist_project_name}</div>` : ''}
                         </div>
-                        <button class="btn-icon" style="flex-shrink: 0; background: rgba(255,255,255,0.88); border: 1px solid rgba(226,232,240,0.9); border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;" onclick="event.stopPropagation(); openHorizonModal('role', ${role.id})">
                         <button class="btn-icon" style="flex-shrink: 0; background: rgba(255,255,255,0.9); border: 1px solid rgba(226,232,240,0.95); border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;" onclick="event.stopPropagation(); openHorizonModal('role', ${role.id})">
                             <i class="fas fa-gear" style="font-size: 0.75rem; color: #334155;"></i>
                         </button>
@@ -887,6 +1058,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const stats = await apiFetch(`/ambitions/${id}/stats`);
         const tasks = await apiFetch(`/ambitions/${id}/tasks`);
+        currentDetailTasks = tasks || [];
+        currentDetailAmbitionId = id;
 
         document.getElementById('detail-stats').innerHTML = `
             <div class="stat-item"><div class="stat-value">${stats.total_hours}h</div><div class="stat-label">Spent</div></div>
@@ -894,18 +1067,39 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="stat-item"><div class="stat-value">${stats.total_finished}</div><div class="stat-label">Total Done</div></div>
         `;
 
-        document.getElementById('detail-tasks').innerHTML = tasks.map(t => `
-            <div class="mini-task">
-                <div class="status-circle ${t.status === 'done' ? 'done' : ''}" onclick="toggleTaskStatusFromDetail(${t.id}, '${t.status}', ${ambition.id})"></div>
+        document.getElementById('detail-tasks').innerHTML = (tasks || []).map(t => {
+            const isMonitoring = t.status === 'monitoring';
+            const dueVal = (t.due_date || t.todoist_due_date || '').slice(0, 10);
+            return `
+            <div class="mini-task" style="align-items: center;">
+                <div class="status-circle ${t.status === 'done' ? 'done' : ''}" title="${t.status === 'done' ? 'Reopen task' : 'Mark as Done'}" onclick="toggleTaskStatusFromDetail(${t.id}, '${t.status}', ${ambition.id})"></div>
                 <div style="flex:1; display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
-                    <span>${t.title}</span>
+                    <span style="${t.status === 'done' ? 'text-decoration: line-through; color: var(--text-muted);' : ''}">${t.title}</span>
+                    ${t.status === 'done' ? '<span class="badge success">Finalised</span>' : ''}
+                    ${renderMonitoringBadge(t)}
                     ${t.status === 'archived' ? '<span class="archived-badge">Archived</span>' : ''}
+                    ${renderDueDateBadge(t, ambition.id)}
                     ${renderTodoistLinkBadge(t)}
                     ${renderTodoistUrgentBadge(t)}
                 </div>
-                <div class="text-muted">${t.estimated_time > 0 ? `${t.estimated_time}m • ` : ''}${t.energy_level}</div>
+                <div class="text-muted" style="font-size: 0.78rem;">${t.estimated_time > 0 ? `${t.estimated_time}m • ` : ''}${t.energy_level}</div>
+                <div style="display: flex; align-items: center; gap: 0.15rem;">
+                    <button class="btn-icon ${isMonitoring ? 'active-monitor' : ''}" onclick="toggleTaskMonitor(${t.id}, '${t.status}', ${ambition.id})" title="${isMonitoring ? 'Switch back to Next Action (To Do)' : 'Change status to Monitoring'}">
+                        <i class="fas fa-eye" style="font-size: 0.8rem;"></i>
+                    </button>
+                    <button class="btn-icon" onclick="openSnoozeModal(${t.id}, '${dueVal}', ${ambition.id})" title="Snooze / Set Due Date">
+                        <i class="fas fa-clock" style="font-size: 0.8rem; ${dueVal ? 'color: #4f46e5;' : ''}"></i>
+                    </button>
+                    <button class="btn-icon" onclick="openTaskEditModal(${t.id}, ${ambition.id})" title="Edit Task">
+                        <i class="fas fa-pen-to-square" style="font-size: 0.8rem;"></i>
+                    </button>
+                    <button class="btn-icon btn-danger-icon" onclick="deleteTask(${t.id}, ${ambition.id})" title="Delete Task">
+                        <i class="fas fa-trash-can" style="font-size: 0.8rem;"></i>
+                    </button>
+                </div>
             </div>
-        `).join('');
+            `;
+        }).join('');
 
         document.getElementById('edit-ambition-btn').onclick = (e) => {
             e.stopPropagation();
@@ -969,16 +1163,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="role-theme-option ${isSel ? 'selected' : ''}"
                      style="border-color: ${isSel ? t.color : '#e2e8f0'};"
                      onclick="selectRoleThemeOption('${t.key}')">
-                    <div class="role-card-bg" style="background-image: url('${bgUri}'); opacity: 0.42;"></div>
-                    <div class="role-card-veil" style="background: linear-gradient(90deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.48) 100%);"></div>
-                    <div style="position: relative; z-index: 2; display: flex; align-items: center; gap: 0.5rem;">
-                        <div style="width: 28px; height: 28px; flex-shrink: 0; background: #fff; border-radius: 0.45rem; border: 1px solid ${t.color}; display: flex; align-items: center; justify-content: center; padding: 2px;">
-                            ${t.iconSvg || ''}
-                        </div>
-                        <div style="min-width: 0; flex: 1;">
-                            <div style="font-size: 0.73rem; font-weight: 700; color: #0f172a; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${t.title}</div>
-                            <div style="font-size: 0.63rem; font-weight: 600; color: ${t.color}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${t.subtitle}</div>
-                        </div>
                     <div class="role-card-bg" style="background-image: url('${bgUri}'); opacity: 0.78;"></div>
                     <div class="role-card-veil" style="background: linear-gradient(90deg, rgba(255,255,255,0.75) 0%, rgba(255,255,255,0.18) 100%);"></div>
                     <div style="position: relative; z-index: 2; display: flex; justify-content: space-between; align-items: flex-start;">

@@ -220,7 +220,11 @@ def get_ambitions_with_task_counts(db: Session, status: str = "active"):
     for a in ambitions:
         todo_count = db.query(models.Task).filter(
             models.Task.ambition_id == a.id,
-            models.Task.status == "todo"
+            models.Task.status.in_(["todo", "monitoring"])
+        ).count()
+        monitoring_count = db.query(models.Task).filter(
+            models.Task.ambition_id == a.id,
+            models.Task.status == "monitoring"
         ).count()
         done_count = db.query(models.Task).filter(
             models.Task.ambition_id == a.id,
@@ -240,6 +244,7 @@ def get_ambitions_with_task_counts(db: Session, status: str = "active"):
             "role_theme_key": a.role.theme_key if a.role else None,
             "status": a.status,
             "todo_count": todo_count,
+            "monitoring_count": monitoring_count,
             "done_count": done_count,
             "archived_count": archived_count,
             "todoist_label_id": a.todoist_label_id,
@@ -340,6 +345,19 @@ def update_task_status(db: Session, task_id: int, status: str):
 def update_task(db: Session, task_id: int, **kwargs):
     db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
     if db_task:
+        if "due_date" in kwargs:
+            due_val = kwargs.pop("due_date")
+            if due_val:
+                due_str = str(due_val)[:10]
+                db_task.todoist_due_date = due_str
+                try:
+                    db_task.planned_date = datetime.fromisoformat(due_str)
+                except ValueError:
+                    pass
+            else:
+                db_task.todoist_due_date = None
+                db_task.planned_date = None
+
         for key, value in kwargs.items():
             if hasattr(db_task, key):
                 setattr(db_task, key, value)
@@ -352,6 +370,32 @@ def update_task(db: Session, task_id: int, **kwargs):
         db.refresh(db_task)
     return db_task
 
+def snooze_task(db: Session, task_id: int, due_date_str: str = None):
+    db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
+    if not db_task:
+        return None
+    if due_date_str:
+        clean_date = str(due_date_str).strip()[:10]
+        db_task.todoist_due_date = clean_date
+        try:
+            db_task.planned_date = datetime.fromisoformat(clean_date)
+        except ValueError:
+            pass
+    else:
+        db_task.todoist_due_date = None
+        db_task.planned_date = None
+    db.commit()
+    db.refresh(db_task)
+    return db_task
+
+def delete_task(db: Session, task_id: int):
+    db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
+    if not db_task:
+        return False
+    db.delete(db_task)
+    db.commit()
+    return True
+
 def filter_tasks(db: Session, context_tag: str = None, energy_level: str = None):
     query = db.query(models.Task)
     if context_tag:
@@ -360,10 +404,23 @@ def filter_tasks(db: Session, context_tag: str = None, energy_level: str = None)
         query = query.filter(models.Task.energy_level == energy_level)
     return query.all()
 
-def get_filtered_tasks(db: Session, role_id: int = None, context_tag: str = None, energy_level: str = None, include_archived: bool = False):
+def get_filtered_tasks(
+    db: Session,
+    role_id: int = None,
+    context_tag: str = None,
+    energy_level: str = None,
+    status_filter: str = None,
+    include_archived: bool = False,
+    include_completed: bool = False
+):
     query = db.query(models.Task)
-    if not include_archived:
-        query = query.filter(models.Task.status != "archived")
+    if status_filter in ("todo", "monitoring"):
+        query = query.filter(models.Task.status == status_filter)
+    else:
+        if not include_archived:
+            query = query.filter(models.Task.status != "archived")
+        if not include_completed:
+            query = query.filter(models.Task.status != "done")
     if role_id:
         query = query.filter(models.Task.role_id == role_id)
     if context_tag:
